@@ -14,7 +14,18 @@ dependencies = [
     "pytest==8.4.2",
     "pyulog==1.3.0",
     "reuse[charset-normalizer]==6.2.0",
+    "ruff==0.17.5",
 ]
 
 [tool.uv]
 package = false
+
+# Lint of the repository's own Python (ADR-0016: the version is exact, like
+# the other tools). No `ruff format`: formatting is not enforced.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["external", "vendor", "build", "tools/bootloader/external/uploader.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "BLE"]

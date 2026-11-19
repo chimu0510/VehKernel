@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The bundled host tools run on Python 3.10 (ADR-0026, spec 0014); ruff flags
+# newer syntax here. Everything else comes from the root pyproject.toml.
+extend = "../../pyproject.toml"
+target-version = "py310"
