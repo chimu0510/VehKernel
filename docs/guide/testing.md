@@ -18,6 +18,8 @@ CI gives a failed test a second attempt (`--repeat until-pass:2`), since a stall
 
 The license check, `reuse_lint`, covers every file in the working tree that git does not ignore, untracked ones included. A stray file such as a log written to the repository root fails it with `The following files have no licensing information`: move it out of the tree, or under `build/`, which git ignores.
 
+The Python lint, `python_lint`, runs ruff (rules `E`, `F`, `W` and `BLE`, line length 120, configured in [`pyproject.toml`](../../pyproject.toml)) over the repository's own Python. The bundled host tools in `tools/link/`, `tools/log/` and `tools/flash/` are checked against Python 3.10 (a `ruff.toml` in each), so syntax newer than 3.10 fails there and not in the generators ([ADR-0026](../adr/0026-host-tools-bundle.md)). Fix findings by hand or with `ruff check --fix`; a deliberate exception takes a `# noqa: <code>` comment. `ruff format` is not used.
+
 ### Faster local runs
 
 A full run takes a few minutes, for two reasons. The `test` preset runs clang-tidy on every file, which takes about 95 % of the build time (66 s against 3 s on 24 cores). The SITL tests, about 6 minutes, always run one at a time: they judge timing, and running them together would make them fail. While iterating, turn clang-tidy off in the build tree and leave the SITL tests out:

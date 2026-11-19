@@ -28,7 +28,7 @@ cmake --build --preset test
 ctest --preset test
 ```
 
-and build every firmware preset you touched, for example `c50c-v1_1`. A change to the Link's decoders also runs the fuzz targets (`cmake --preset fuzz`, `cmake --build --preset fuzz`, `ctest --preset fuzz`). The `sitl`, `test` and `fuzz` presets run clang-tidy with every warning as an error. [Testing](docs/guide/testing.md) describes the six test layers; add tests at the lowest layer that can catch the bug. Changes that move actuators also need the hardware check described there, done with the wheels off the ground and output power limited.
+`ctest` includes the license check (`reuse_lint`) and the Python lint (`python_lint`, ruff, [configured](pyproject.toml) for line length 120 and Python 3.10 in the bundled tools); `ruff check --fix` repairs most findings. Then build every firmware preset you touched, for example `c50c-v1_1`. A change to the Link's decoders also runs the fuzz targets (`cmake --preset fuzz`, `cmake --build --preset fuzz`, `ctest --preset fuzz`). The `sitl`, `test` and `fuzz` presets run clang-tidy with every warning as an error. [Testing](docs/guide/testing.md) describes the six test layers; add tests at the lowest layer that can catch the bug. Changes that move actuators also need the hardware check described there, done with the wheels off the ground and output power limited.
 
 ## Coding rules
 

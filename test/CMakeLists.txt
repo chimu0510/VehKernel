@@ -276,6 +276,12 @@ add_test(NAME reuse_lint
 set_tests_properties(reuse_lint PROPERTIES ENVIRONMENT
   "GIT_CONFIG_COUNT=1;GIT_CONFIG_KEY_0=safe.directory;GIT_CONFIG_VALUE_0=*")
 
+# Python lint (L0): ruff over the repository's own Python, with the rules and
+# the per-directory Python 3.10 target of pyproject.toml. --no-cache keeps it
+# from writing .ruff_cache into the checkout, which reuse_lint would reject.
+add_test(NAME python_lint
+  COMMAND ${Python3_EXECUTABLE} -m ruff check --no-cache ${CMAKE_SOURCE_DIR})
+
 # Host tool tests (pytest), through each tool's command line.
 add_test(NAME socdb
   COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${CMAKE_SOURCE_DIR}/tools/socdb/tests)
