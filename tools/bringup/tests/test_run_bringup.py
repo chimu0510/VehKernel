@@ -55,7 +55,8 @@ def run(tmp_path: Path, words: list[int], symbol: str = "vk_bringup_results"):
     elf = tmp_path / "vehkernel.elf"
     elf.write_bytes(minimal_elf(symbol, ADDRESS, BLOCK_WORDS * 4))
     return subprocess.run(
-        [sys.executable, str(RUNNER), str(elf), "--openocd", str(fake_openocd(tmp_path, words)), "--wait", "0", "--timeout", "0"],
+        [sys.executable, str(RUNNER), str(elf), "--openocd", str(fake_openocd(tmp_path, words)),
+         "--wait", "0", "--timeout", "0"],
         capture_output=True, text=True, check=False, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 

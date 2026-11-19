@@ -11,10 +11,10 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 sys.path.insert(0, str(REPO / "tools" / "generators"))
 
-from vkboard.diagnostics import Diagnostics
-from vkschema.emit import python_ulog_formats
-from vkschema.profiles import load_profiles
-from vkschema.schema import load_schema
+from vkboard.diagnostics import Diagnostics  # noqa: E402
+from vkschema.emit import python_ulog_formats  # noqa: E402
+from vkschema.profiles import load_profiles  # noqa: E402
+from vkschema.schema import load_schema  # noqa: E402
 SCHEMA_DIR = REPO / "schema"
 GENERATOR = REPO / "tools" / "generators" / "generate_schema.py"
 VKULOG_FORMATS = REPO / "tools" / "log" / "vkulog" / "formats.py"

@@ -6,9 +6,7 @@ import pytest
 from vklink.cobs import cobs_encode
 from vklink.crc16 import crc16
 from vklink.frame import (
-    HEADER_SIZE,
     MAX_BODY_SIZE,
-    MAX_FRAME_SIZE,
     MAX_WIRE_SIZE,
     PROTOCOL_VERSION,
     FrameReader,

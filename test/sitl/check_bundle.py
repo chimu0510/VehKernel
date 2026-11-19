@@ -79,7 +79,8 @@ def main() -> int:
             # Step 1: --check --duration 3 with no mismatch
             print("$ tools/link/link_monitor.py --check --duration 3")
             res_check = subprocess.run(
-                [sys.executable, str(monitor), "--udp", address, "--handshake-timeout", "5", "--check", "--duration", "3"],
+                [sys.executable, str(monitor), "--udp", address, "--handshake-timeout", "5",
+                 "--check", "--duration", "3"],
                 cwd=bundle_dir,
                 env=clean_env,
                 capture_output=True,
@@ -117,7 +118,8 @@ def main() -> int:
             # Step 3: param set SENS_BOARD_ROT YAW_90 by enum name
             print("$ tools/link/link_monitor.py param set SENS_BOARD_ROT YAW_90")
             res_set = subprocess.run(
-                [sys.executable, str(monitor), "--udp", address, "--handshake-timeout", "5", "param", "set", "SENS_BOARD_ROT", "YAW_90"],
+                [sys.executable, str(monitor), "--udp", address, "--handshake-timeout", "5",
+                 "param", "set", "SENS_BOARD_ROT", "YAW_90"],
                 cwd=bundle_dir,
                 env=clean_env,
                 capture_output=True,

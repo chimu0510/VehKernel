@@ -127,7 +127,8 @@ class Bootloader:
 
 def start_upload(pty: str, apj: Path) -> subprocess.Popen:
     # Unbuffered, so its lines can be watched as they come.
-    return subprocess.Popen([sys.executable, "-u", str(RUN_UPLOADER), str(UPLOADER), "--port", pty, "--no-extf", str(apj)],
+    return subprocess.Popen([sys.executable, "-u", str(RUN_UPLOADER), str(UPLOADER),
+                             "--port", pty, "--no-extf", str(apj)],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
@@ -230,7 +231,8 @@ def main() -> int:
         failures.append(f"the cut-off upload failed before its cut: {error}")
     bl.stop()  # a power loss
     data = flash.read_bytes()
-    if data[:32] != b"\xff" * 32 or data[32:cut_at] != image[32:cut_at] or data[cut_at:] != b"\xff" * (len(data) - cut_at):
+    if (data[:32] != b"\xff" * 32 or data[32:cut_at] != image[32:cut_at]
+            or data[cut_at:] != b"\xff" * (len(data) - cut_at)):
         failures.append("the cut-off upload did not leave the image's start written, without its lead words")
     bl = Bootloader(args.bootloader, str(flash))
     if not bl.read_until("bootloader stay: bad_crc", 5):

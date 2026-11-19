@@ -390,9 +390,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="firmware build directory (default build/c50c-v1_1 or bundle)")
     parser.add_argument("--stm32flash", default="stm32flash", help="stm32flash executable")
     parser.add_argument("--uploader", type=Path, default=UPLOADER, help="uploader.py (default: the pinned copy)")
-    parser.add_argument("--link-monitor", type=Path, default=LINK_MONITOR, help="link_monitor.py (default: the repository's)")
+    parser.add_argument(
+        "--link-monitor", type=Path, default=LINK_MONITOR, help="link_monitor.py (default: the repository's)"
+    )
     commands = parser.add_subparsers(dest="command", required=True)
-    update_cmd = commands.add_parser("update", help="write vehkernel.apj through the Vehkernel bootloader; parameters are kept")
+    update_cmd = commands.add_parser(
+        "update", help="write vehkernel.apj through the Vehkernel bootloader; parameters are kept"
+    )
     update_cmd.add_argument("--image", type=Path, help="the .apj image to write instead of the build's vehkernel.apj")
     new_board = commands.add_parser("new-board", help="back up the whole chip, erase it and write the bootloader "
                                                       "and the firmware; parameters start empty")

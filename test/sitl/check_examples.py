@@ -15,7 +15,8 @@ For 04-work-queues:
 For 05-bus:
 - Verifies published counter rate (10 Hz) over the span between first and last report.
 - Verifies no gaps in published counter sequence.
-- Verifies that every received value matches the published ones, each once and in order (allowing 1-2 unreceived at stop).
+- Verifies that every received value matches the published ones, each once and in order (allowing 1-2 unreceived
+  at stop).
 - Verifies display_on=1 reported from the simulated SSD1306.
 - Verifies whole frames: line 0 the title, line 2 the last received count, line 4 the total received count.
 For 06-imu:
@@ -29,14 +30,16 @@ For 07-serial-link:
 - Verifies handshake succeeds.
 - Verifies reported imu_sample rate matches 200 Hz within tolerance (20 %).
 - Verifies display_on=1 reported from the simulated SSD1306.
-- Verifies whole frames: line 0 title, line 2 STATE: CONNECTED, line 3 TX FRAMES, line 4 RX FRAMES, line 5 DROPS: 0, line 6 SCALE: 100 %.
+- Verifies whole frames: line 0 title, line 2 STATE: CONNECTED, line 3 TX FRAMES, line 4 RX FRAMES, line 5 DROPS: 0,
+  line 6 SCALE: 100 %.
 For 08-magnetometer:
 - Runs link_monitor.py mag-read over UDP and verifies its rate and its z field against the reported one.
 - Verifies reported sample rate against 100 Hz within tolerance.
 - Verifies that reported heading tracks simulated vehicle true yaw within tolerance (3.0 deg) over a rotating motion.
 - Verifies that heading sweeps through at least most of a turn (at least 270 deg).
 - Verifies display_on=1 reported from the simulated SSD1306.
-- Verifies whole frames: line 0 title, line 1 blank, lines 2-4 magnetic field components (BX, BY, BZ), line 5 norm, line 6 sample rate, line 7 heading.
+- Verifies whole frames: line 0 title, line 1 blank, lines 2-4 magnetic field components (BX, BY, BZ), line 5 norm,
+  line 6 sample rate, line 7 heading.
 For 09-parameters:
 - Starts SITL on a simulated NOR Flash file with UDP transport.
 - Connects over UDP and verifies handshake succeeds.
@@ -177,7 +180,7 @@ def check_03_oled(stdout: str, display_file: Path, duration_s: float, tolerance:
                         failures.append(
                             f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -293,7 +296,7 @@ def check_04_work_queues(
                         failures.append(
                             f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -412,7 +415,7 @@ def check_05_bus(
                         failures.append(
                             f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -507,7 +510,7 @@ def check_06_imu(
                         failures.append(
                             f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -573,7 +576,7 @@ def check_07_serial_link(
                 failures.append(f"display line 3: expected prefix 'TX FRAMES: ', got {lines[3]!r}")
             if not lines[4].startswith("RX FRAMES: "):
                 failures.append(f"display line 4: expected prefix 'RX FRAMES: ', got {lines[4]!r}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -760,7 +763,7 @@ def check_08_magnetometer(
                         failures.append(
                             f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                         )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -851,7 +854,7 @@ def check_09_parameters(target: Path, msg_dir: str) -> list[str]:
                     failures.append(f"Run 1 display line 5: expected prefix 'BYTES USED: ', got {lines1[5]!r}")
                 if not lines1[6].startswith("SECTOR: "):
                     failures.append(f"Run 1 display line 6: expected prefix 'SECTOR: ', got {lines1[6]!r}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 failures.append(f"Run 1: failed to read display image: {e}")
 
         # 2. Second run: Restart on the same parameter file and read value back
@@ -934,7 +937,7 @@ def check_09_parameters(target: Path, msg_dir: str) -> list[str]:
                     failures.append(f"Run 2 display line 5: expected prefix 'BYTES USED: ', got {lines2[5]!r}")
                 if not lines2[6].startswith("SECTOR: "):
                     failures.append(f"Run 2 display line 6: expected prefix 'SECTOR: ', got {lines2[6]!r}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 failures.append(f"Run 2: failed to read display image: {e}")
 
     return failures
@@ -1145,7 +1148,7 @@ def check_10_motor_outputs(
                     failures.append(
                         f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures
@@ -1309,7 +1312,8 @@ def check_11_wheel_encoders(
         steady_samples = [
             grp.speeds[w]
             for grp in report_groups
-            if w in grp.speeds and STEADY_STATE_START_11_WHEEL_ENCODERS <= grp.timestamp_s < STEADY_STATE_END_11_WHEEL_ENCODERS
+            if w in grp.speeds
+            and STEADY_STATE_START_11_WHEEL_ENCODERS <= grp.timestamp_s < STEADY_STATE_END_11_WHEEL_ENCODERS
         ]
         if not steady_samples:
             failures.append(
@@ -1414,7 +1418,8 @@ def check_11_wheel_encoders(
                     grp.counts[w] for grp in stopped_groups if w in grp.counts
                 ]
                 final_cnt = post_counts[-1] if post_counts else last_group.counts.get(w, 0)
-                candidates = list({f"{w} {c:+d} +0.00" for c in (post_counts[-2:] if len(post_counts) >= 2 else [final_cnt])})
+                last_counts = post_counts[-2:] if len(post_counts) >= 2 else [final_cnt]
+                candidates = list({f"{w} {c:+d} +0.00" for c in last_counts})
                 expected_lines[w + 1] = candidates[0] if len(candidates) == 1 else candidates
 
             for line_idx, expected in expected_lines.items():
@@ -1423,7 +1428,7 @@ def check_11_wheel_encoders(
                     failures.append(
                         f"display line {line_idx}: expected {expected!r}, got {lines[line_idx]!r}"
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failures.append(f"failed to read display image: {e}")
 
     return failures

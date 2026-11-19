@@ -381,7 +381,9 @@ def _actuators(entries, roles: dict, diag: Diagnostics) -> list[Actuator]:
         if actuator is None:
             continue
         if actuator.output in seen:
-            diag.error(f"actuator output {actuator.output} is already defined ({seen[actuator.output].refer(loc)})", loc)
+            diag.error(
+                f"actuator output {actuator.output} is already defined ({seen[actuator.output].refer(loc)})", loc
+            )
             continue
         seen[actuator.output] = loc
         actuators.append(actuator)

@@ -158,7 +158,8 @@ def load_profiles(path: Path, schema: Schema, diag: Diagnostics) -> list[Profile
 
             instance = item.get("instance")
             if instance is not None:
-                if not isinstance(instance, int) or isinstance(instance, bool) or instance < 0 or instance >= msg.instances:
+                if (not isinstance(instance, int) or isinstance(instance, bool)
+                        or instance < 0 or instance >= msg.instances):
                     diag.error(f"profile '{name}': topic '{topic}' has invalid instance '{instance}'; "
                                f"must be 0 <= instance < {msg.instances}")
                     continue

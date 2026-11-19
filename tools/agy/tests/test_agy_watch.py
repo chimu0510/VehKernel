@@ -74,7 +74,8 @@ def test_describe_names_each_kind_of_step():
     prompt = agy_watch.describe(0, agy_watch.STEP_USER, 3, user_step("Implement ticket #151"))
     assert (prompt.kind, prompt.status, prompt.lines) == ("prompt", "done", ["Implement ticket #151"])
 
-    model = agy_watch.describe(1, agy_watch.STEP_MODEL, 8, model_step("Reading the spec", [("read_file", '{"Path":"a"}')]))
+    step = model_step("Reading the spec", [("read_file", '{"Path":"a"}')])
+    model = agy_watch.describe(1, agy_watch.STEP_MODEL, 8, step)
     assert (model.kind, model.status) == ("agy", "running")
     assert model.lines == ["Reading the spec", '-> read_file {"Path":"a"}']
 

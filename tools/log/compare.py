@@ -41,7 +41,9 @@ from vkulog.reader import DataMessage  # noqa: E402
 LEFT_OUT_FIELDS = {"timestamp"}
 
 
-def multiply(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+def multiply(
+    a: tuple[float, float, float, float], b: tuple[float, float, float, float]
+) -> tuple[float, float, float, float]:
     aw, ax, ay, az = a
     bw, bx, by, bz = b
     return (
@@ -84,7 +86,9 @@ def error_rotation_vector(
     return (scale * q_err[1], scale * q_err[2], scale * q_err[3])
 
 
-def slerp(q0: tuple[float, float, float, float], q1: tuple[float, float, float, float], f: float) -> tuple[float, float, float, float]:
+def slerp(
+    q0: tuple[float, float, float, float], q1: tuple[float, float, float, float], f: float
+) -> tuple[float, float, float, float]:
     dot = sum(a * b for a, b in zip(q0, q1))
     if dot < 0.0:
         q1 = (-q1[0], -q1[1], -q1[2], -q1[3])
@@ -120,7 +124,9 @@ def interpolate_truth_attitude(gt_list: list[dict[str, Any]], target_us: int) ->
     return slerp(before["q"], after["q"], f)
 
 
-def interpolate_truth_odometry(gt_list: list[dict[str, Any]], target_us: int) -> tuple[tuple[float, float, float], float]:
+def interpolate_truth_odometry(
+    gt_list: list[dict[str, Any]], target_us: int
+) -> tuple[tuple[float, float, float], float]:
     if not gt_list:
         return ((0.0, 0.0, 0.0), 0.0)
     timestamps = [s["timestamp"] for s in gt_list]
@@ -271,7 +277,6 @@ def compare_logs(
     reference_path: str | Path | None = None,
 ) -> bool:
     rec_data = extract_log(recorded_path)
-    rep_data = extract_log(replayed_path)
     rec_streams = extract_log_streams(recorded_path)
     rep_streams = extract_log_streams(replayed_path)
 
@@ -314,13 +319,15 @@ def compare_logs(
     if restart_ts is not None:
         start_ts = restart_ts
         duration_s = max(0, max_ts - restart_ts) * 1e-6
-        print(f"Comparing window: from first estimator_restart at {restart_ts} us to {max_ts} us (duration {duration_s:.3f} s)")
+        print(f"Comparing window: from first estimator_restart at {restart_ts} us to {max_ts} us "
+              f"(duration {duration_s:.3f} s)")
     else:
         start_ts = min_ts
         duration_s = max(0, max_ts - min_ts) * 1e-6
         print(f"Comparing window: whole log from {min_ts} us to {max_ts} us (duration {duration_s:.3f} s)")
 
-    print(f"Left out of faithfulness check: {', '.join(sorted(LEFT_OUT_FIELDS))} (publication time; matched by timestamp_sample)")
+    print(f"Left out of faithfulness check: {', '.join(sorted(LEFT_OUT_FIELDS))} "
+          f"(publication time; matched by timestamp_sample)")
 
     # Compare every topic stream present in both logs (vehicle_attitude, vehicle_local_odometry,
     # and each instance of estimator_attitude, spec 0012).
@@ -438,7 +445,8 @@ def compare_logs(
                     max_yaw = max(yaw_errors)
                     end_yaw = yaw_errors[-1]
                     print(
-                        f"Metrics: attitude error mean={mean_att:.4f} deg, max={max_att:.4f} deg, end={end_att:.4f} deg, "
+                        f"Metrics: attitude error mean={mean_att:.4f} deg, max={max_att:.4f} deg, "
+                        f"end={end_att:.4f} deg, "
                         f"yaw error mean={mean_yaw:.4f} deg, max={max_yaw:.4f} deg, end={end_yaw:.4f} deg"
                     )
 
@@ -459,7 +467,8 @@ def compare_logs(
                     max_yaw = max(est_yaw_errors)
                     end_yaw = est_yaw_errors[-1]
                     print(
-                        f"Metrics: estimator_attitude:{inst} attitude error mean={mean_att:.4f} deg, max={max_att:.4f} deg, end={end_att:.4f} deg, "
+                        f"Metrics: estimator_attitude:{inst} attitude error mean={mean_att:.4f} deg, "
+                        f"max={max_att:.4f} deg, end={end_att:.4f} deg, "
                         f"yaw error mean={mean_yaw:.4f} deg, max={max_yaw:.4f} deg, end={end_yaw:.4f} deg"
                     )
 

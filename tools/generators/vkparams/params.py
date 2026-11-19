@@ -413,8 +413,9 @@ def parse_file(path: Path, display: str, diag: Diagnostics) -> Group | None:
     menu_loc = Loc(display, (_key_lines(text, "menu") or [None])[0])
     if menu_allowed is not False:
         if "menu" in data:
+            shown_menu = str(menu_allowed).lower() if isinstance(menu_allowed, bool) else repr(menu_allowed)
             diag.error(f"a file-level menu can only be false, keeping the group out of the local menu, "
-                       f"got {str(menu_allowed).lower() if isinstance(menu_allowed, bool) else repr(menu_allowed)}", menu_loc)
+                       f"got {shown_menu}", menu_loc)
         menu_allowed = True
     entries = data.get("param", [])
     if not isinstance(entries, list) or not entries:

@@ -306,7 +306,8 @@ def load_board(path: Path, soc_root: Path, display_path: str | None = None) -> B
     dma = assign(requests, diag)
     if diag:
         raise BoardError(diag.errors)
-    return Board(name=name, soc=soc, soc_dir=soc_dir.relative_to(soc_root).as_posix(), source=shown, pins=tuple(pins), dma=tuple(dma),
+    return Board(name=name, soc=soc, soc_dir=soc_dir.relative_to(soc_root).as_posix(), source=shown,
+                 pins=tuple(pins), dma=tuple(dma),
                  alt_configs=tuple(configs), flash=flash, ram=ram_regions(database),
                  hardware=hardware, clock=clock, peripherals=peripherals, board_id=board_id,
                  bootloader=bootloader)

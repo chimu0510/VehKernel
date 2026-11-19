@@ -44,7 +44,8 @@ class ULogWriter:
     def write_flag_bits(self, compat_flags: bytes = b"\x00" * 8, incompat_flags: bytes = b"\x00" * 8,
                         appended_offsets: tuple[int, int, int] = (0, 0, 0)) -> None:
         """Write a 'B' flag bits message as the first message of the definitions section."""
-        payload = compat_flags[:8].ljust(8, b"\x00") + incompat_flags[:8].ljust(8, b"\x00") + struct.pack("<3Q", *appended_offsets)
+        payload = (compat_flags[:8].ljust(8, b"\x00") + incompat_flags[:8].ljust(8, b"\x00")
+                   + struct.pack("<3Q", *appended_offsets))
         header = struct.pack("<HB", len(payload), MSG_TYPE_FLAG_BITS)
         self._file.write(header + payload)
 

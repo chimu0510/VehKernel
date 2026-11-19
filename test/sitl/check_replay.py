@@ -175,12 +175,18 @@ def main() -> int:
             # 5. Check replayed odometry bounds against logged ground truth
             pos_error, heading_error_deg, driven = compute_odometry_metrics(recorded_path, replayed_path)
             max_pos_error = driven * POSITION_TOLERANCE + POSITION_FLOOR
-            print(f"Odometry vs truth: driven {driven:.3f} m, position error {pos_error:.4f} m (bound {max_pos_error:.4f} m), "
+            print(f"Odometry vs truth: driven {driven:.3f} m, "
+                  f"position error {pos_error:.4f} m (bound {max_pos_error:.4f} m), "
                   f"heading error {heading_error_deg:.2f} deg (bound {HEADING_TOLERANCE_DEG:.1f} deg)")
             if pos_error > max_pos_error:
-                failures.append(f"replayed odometry position error {pos_error:.4f} m exceeds bound {max_pos_error:.4f} m")
+                failures.append(
+                    f"replayed odometry position error {pos_error:.4f} m exceeds bound {max_pos_error:.4f} m"
+                )
             if heading_error_deg > HEADING_TOLERANCE_DEG:
-                failures.append(f"replayed odometry heading error {heading_error_deg:.2f} deg exceeds bound {HEADING_TOLERANCE_DEG:.1f} deg")
+                failures.append(
+                    f"replayed odometry heading error {heading_error_deg:.2f} deg "
+                    f"exceeds bound {HEADING_TOLERANCE_DEG:.1f} deg"
+                )
 
         finally:
             vehicle.close()

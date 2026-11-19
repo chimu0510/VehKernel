@@ -108,8 +108,10 @@ class BringupReply:
             return cls(rejected=True, reason=body[0])
         if frame.type != FrameType.BRINGUP_RESULT or len(body) < 3 or len(body) < 3 + 3 * body[2]:
             return None
-        outputs = tuple(BringupOutput(body[3 + 3 * i], body[4 + 3 * i], struct.unpack("<b", body[5 + 3 * i:6 + 3 * i])[0])
-                        for i in range(body[2]))
+        outputs = tuple(
+            BringupOutput(body[3 + 3 * i], body[4 + 3 * i], struct.unpack("<b", body[5 + 3 * i:6 + 3 * i])[0])
+            for i in range(body[2])
+        )
         return cls(rejected=False, bringup_case=body[0], aborted=body[1] == BringupState.ABORTED, outputs=outputs)
 
 

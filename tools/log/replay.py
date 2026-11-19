@@ -190,7 +190,8 @@ def replay(
         elif kind == "D":
             name, inst, payload = data
             name_bytes = name.encode("ascii")
-            pkt = struct.pack("<BBB", ord("D"), len(name_bytes), inst) + name_bytes + struct.pack("<H", len(payload)) + payload
+            pkt = (struct.pack("<BBB", ord("D"), len(name_bytes), inst) + name_bytes
+                   + struct.pack("<H", len(payload)) + payload)
             # Wait, notice format in test/replay/main.cpp:
             # magic (1 byte 'D')
             # nlen (1 byte)
@@ -198,7 +199,8 @@ def replay(
             # instance (1 byte)
             # plen (2 bytes)
             # payload (plen bytes)
-            pkt = struct.pack("<BB", ord("D"), len(name_bytes)) + name_bytes + struct.pack("<BH", inst, len(payload)) + payload
+            pkt = (struct.pack("<BB", ord("D"), len(name_bytes)) + name_bytes
+                   + struct.pack("<BH", inst, len(payload)) + payload)
             proc.stdin.write(pkt)
 
     proc.stdin.close()

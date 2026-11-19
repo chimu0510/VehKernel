@@ -203,7 +203,9 @@ def format_step(step: Step, width: int, full: bool) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("conversation_id", help="the agy conversation id, as the AGY_USAGE line of a round's log gives it")
+    parser.add_argument(
+        "conversation_id", help="the agy conversation id, as the AGY_USAGE line of a round's log gives it"
+    )
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR,
                         help=f"agy's state directory (default {DEFAULT_STATE_DIR})")
     parser.add_argument("--last", type=int, default=0, metavar="N", help="show only the last N steps")

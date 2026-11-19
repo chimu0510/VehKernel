@@ -61,9 +61,7 @@ import argparse
 import math
 import os
 import shutil
-import struct
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -74,11 +72,6 @@ if log_tools_dir not in sys.path:
 from vklink.bundle import bundle_root  # noqa: E402
 from vklink.frame import (  # noqa: E402
     PROTOCOL_VERSION,
-    Frame,
-    FrameType,
-    LogDropout,
-    LogInfo,
-    LogStartResult,
     ProtocolVersionError,
 )
 from vklink.enums import BringupResult, GamepadButton  # noqa: E402
@@ -166,7 +159,9 @@ def parse_twist(text: str) -> tuple[float, float, float]:
     except ValueError:
         twist = ()
     if len(twist) != 3 or not all(math.isfinite(value) for value in twist):
-        raise argparse.ArgumentTypeError(f"expected a body velocity <vx>,<vy>,<yaw_rate> in m/s and rad/s, got '{text}'")
+        raise argparse.ArgumentTypeError(
+            f"expected a body velocity <vx>,<vy>,<yaw_rate> in m/s and rad/s, got '{text}'"
+        )
     return twist
 
 

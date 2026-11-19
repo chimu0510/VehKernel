@@ -148,7 +148,8 @@ def test_license_tag_is_not_documentation(tmp_path: Path):
     "# Docs.\n@type uint8\nOK = 0  @short -\nFAILED = 2\nLATER = 3\n",
 ], ids=["base", "renumbered-added-short"])
 def test_enums_do_not_change_the_schema_hash(tmp_path: Path, values: str):
-    plain = schema_hash(write(tmp_path / "plain", "topic", "uint64 timestamp\nuint8 state\n"), tmp_path / "out_plain", "topic")
+    plain_dir = write(tmp_path / "plain", "topic", "uint64 timestamp\nuint8 state\n")
+    plain = schema_hash(plain_dir, tmp_path / "out_plain", "topic")
     schema = write(tmp_path / "enum", "topic", "uint64 timestamp\nuint8 state  @enum result\n")
     (schema / "result.enum").write_text(values, encoding="utf-8")
     assert schema_hash(schema, tmp_path / "out_enum", "topic") == plain

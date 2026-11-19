@@ -25,7 +25,12 @@ package = false
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["external", "vendor", "build", "tools/bootloader/external/uploader.py"]
+extend-exclude = ["external", "vendor", "build", "tools/bootloader/external/uploader.py",
+                  "tools/generators/tests/**/expected"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "BLE"]
+
+# Generated, and compared byte for byte with the generator's output.
+[tool.ruff.lint.per-file-ignores]
+"tools/log/vkulog/formats.py" = ["E501"]

@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, BinaryIO, NamedTuple
 
 from .constants import (
-    FILE_VERSION,
     HEADER_BYTES,
     MSG_TYPE_ADD_LOGGED_MSG,
     MSG_TYPE_DATA,
@@ -20,7 +19,6 @@ from .constants import (
     MSG_TYPE_INFO,
     MSG_TYPE_PARAMETER,
     MSG_TYPE_SYNC,
-    SYNC_BYTES,
 )
 
 

@@ -5,8 +5,8 @@
 First, with SITL at rest, the Link monitor's param command lists every
 parameter with its metadata and a matching parameter set hash, reads and sets
 one, sets SENS_BOARD_ROT by name and sees it pending reboot, and is refused,
-with the reason, a value out of range and an unknown name. Then, with SITL under the shake profile and the accelerometer rejection
-turned off through ATT_ACC_REJ, the estimate follows the linear acceleration
+with the reason, a value out of range and an unknown name. Then, with SITL under the shake profile and the
+accelerometer rejection turned off through ATT_ACC_REJ, the estimate follows the linear acceleration
 bursts barely at a small ATT_KP and far at a large one set in between: the
 gain reaches the running filter. Last, values set over the Link are back
 after SITL restarts with the same --param-file, parameter_status reporting

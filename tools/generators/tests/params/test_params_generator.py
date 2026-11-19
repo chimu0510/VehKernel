@@ -140,7 +140,9 @@ def test_set_hash_ignores_comments_and_file_order(tmp_path: Path):
 
 def test_the_c50c_board_sets_the_link_baud_rate(tmp_path: Path):
     """The repository's definitions with the C50C V1.1's golden board defaults."""
-    board_defaults = REPO / "tools" / "generators" / "tests" / "boards" / "c50c-v1_1" / "expected" / "board_defaults.json"
+    board_defaults = (
+        REPO / "tools" / "generators" / "tests" / "boards" / "c50c-v1_1" / "expected" / "board_defaults.json"
+    )
     definitions = sorted(str(p.relative_to(REPO)) for layer in ("core", "drivers", "modules", "platform")
                          for p in (REPO / layer).rglob("params.toml"))
     config = tmp_path / "config"

@@ -19,9 +19,8 @@ from dataclasses import dataclass
 import math
 import os
 from pathlib import Path
-import struct
 import sys
-from typing import Any, Sequence
+from typing import Sequence
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "log"))
@@ -29,7 +28,7 @@ sys.path.insert(0, str(REPO / "tools" / "link"))
 
 from vklink.bundle import bundle_root  # noqa: E402
 import vkulog  # noqa: E402
-from vkulog.reader import DataMessage, ParameterChange  # noqa: E402
+from vkulog.reader import DataMessage  # noqa: E402
 
 # Default maximum residual threshold in µT.
 # The AK09916 sensor has a resolution of 0.15 µT (quantization error ~0.043 µT RMS),
@@ -439,7 +438,8 @@ def print_fit_result(
     mode_str = "3D ellipsoid" if result.is_3d else "2D horizontal ellipse"
     print(f"Fit ({mode_str}):")
     if result.is_3d:
-        print(f"  offsets:   x = {result.offsets[0]:.3f} µT, y = {result.offsets[1]:.3f} µT, z = {result.offsets[2]:.3f} µT")
+        print(f"  offsets:   x = {result.offsets[0]:.3f} µT, y = {result.offsets[1]:.3f} µT, "
+              f"z = {result.offsets[2]:.3f} µT")
         print(f"  scales:    x = {result.scales[0]:.4f}, y = {result.scales[1]:.4f}, z = {result.scales[2]:.4f}")
         print(
             f"  semi-axes: a = {result.semi_axes[0]:.2f} µT, b = {result.semi_axes[1]:.2f} µT, "
@@ -545,7 +545,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply:
         try:
             apply_parameters_over_link(result, args.serial, args.baud, args.udp, args.msg_dir)
-        except Exception as apply_err:
+        except Exception as apply_err:  # noqa: BLE001
             print(f"FAIL: could not apply parameters: {apply_err}", file=sys.stderr)
             return 1
 

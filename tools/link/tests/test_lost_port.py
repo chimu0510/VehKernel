@@ -37,7 +37,9 @@ def test_a_port_that_fails_while_driving_is_reported(monkeypatch, capsys):
         raise OSError(5, "Input/output error")
 
     monkeypatch.setattr(monitor, "run_drive", pulled_cable)
-    monkeypatch.setattr(sys, "argv", ["link_monitor.py", "--serial", "/dev/fake", "drive", "5,5,nan,nan", "--duration", "1"])
+    monkeypatch.setattr(
+        sys, "argv", ["link_monitor.py", "--serial", "/dev/fake", "drive", "5,5,nan,nan", "--duration", "1"]
+    )
     assert monitor.main() == 1
     err = capsys.readouterr().err
     assert "FAIL: the Link's serial /dev/fake 921600 baud failed: Input/output error" in err

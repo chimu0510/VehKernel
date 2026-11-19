@@ -219,7 +219,7 @@ def find_matching_build_trees(
         try:
             messages = load_messages(msg_dir)
             hashes = {cls.NAME: cls.SCHEMA_HASH for cls in messages.TOPICS.values()}
-        except Exception:
+        except Exception:  # noqa: BLE001
             # A stale build tree may have half-generated, corrupt or incompatible messages.
             continue
         if all(hashes.get(topic) == expected_hash for topic, expected_hash in mismatched_topics.items()):
@@ -237,10 +237,11 @@ def vehicle_status_line(status) -> str:
     """vehicle_status as a space-separated key=value line."""
     source = "none" if status.source == 0xFF else str(status.source)
     skipped = ",".join(check_names(status.skipped_checks)) or "none"
+    actuator_power = ACTUATOR_POWER_STATES.get(status.actuator_power, status.actuator_power).replace(" ", "_")
     return (f"vehicle_status mode={MODES.get(status.mode, status.mode)} armed={int(status.armed)} "
             f"source={source} board_verified={int(status.board_verified)} "
             f"emergency_stop={int(status.emergency_stop)} "
-            f"actuator_power={ACTUATOR_POWER_STATES.get(status.actuator_power, status.actuator_power).replace(' ', '_')} "
+            f"actuator_power={actuator_power} "
             f"skipped_checks={skipped} "
             f"arming_refusal={ARMING_REJECT_REASONS.get(status.arming_refusal, 'none').replace(' ', '_')} "
             f"disarm_reason={DISARM_REASONS.get(status.disarm_reason, status.disarm_reason).replace(' ', '_')} "
@@ -770,7 +771,9 @@ class LinkMonitor:
                 next_request = now + self.REQUEST_INTERVAL_S
             self.poll(min(0.05, deadline - now))
 
-    def _await_param(self, name: str, request: Callable[[], bytes], timeout_s: float) -> ParamValue | ParamReject | None:
+    def _await_param(
+        self, name: str, request: Callable[[], bytes], timeout_s: float
+    ) -> ParamValue | ParamReject | None:
         self.params.pop(name, None)
         rejects = len(self.param_rejects)
         deadline = self.clock() + timeout_s
@@ -985,11 +988,12 @@ class LinkMonitor:
                 lines.append(f"attitude name={name} instance={instance} roll_deg={roll:.2f} "
                              f"pitch_deg={pitch:.2f} yaw_deg={yaw:.2f}")
         for instance, status in self.latest("link_status"):
+            handshake_state = HANDSHAKE_STATES.get(status.handshake_state, "?").replace(" ", "_")
             lines.append(
                 f"mcu_link instance={instance} frames_sent={status.frames_sent} bytes_sent={status.bytes_sent} "
                 f"frames_received={status.frames_received} bytes_received={status.bytes_received} "
                 f"drops={status.drops} crc_errors={status.crc_errors} malformed={status.malformed} "
-                f"lost={status.lost} handshake_state={HANDSHAKE_STATES.get(status.handshake_state, '?').replace(' ', '_')} "
+                f"lost={status.lost} handshake_state={handshake_state} "
                 f"rate_scale={getattr(status, 'rate_scale', 100)}"
             )
         for _, status in self.latest("parameter_status"):

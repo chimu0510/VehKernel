@@ -68,11 +68,13 @@ def render(monitor: LinkMonitor, target: str, width: int = 120) -> list[str]:
             f"{HANDSHAKE_STATES.get(status.handshake_state, '?')}"
         )
     for _, status in monitor.latest("parameter_status"):
+        skipped_at_boot = (status.skipped_unknown + status.skipped_wrong_type
+                           + status.skipped_out_of_range + status.skipped_corrupt)
         lines.append(
             f"parameters     {status.parameter_count}  sector {status.active_sector} "
             f"{status.bytes_used}/{status.sector_size} B  unsaved {status.unsaved}  "
             f"pending reboot {status.pending_reboot}  skipped at boot "
-            f"{status.skipped_unknown + status.skipped_wrong_type + status.skipped_out_of_range + status.skipped_corrupt}"
+            f"{skipped_at_boot}"
             f"{'  FLASH FAILED' if status.failed else ''}"
         )
     for _, status in monitor.latest("vehicle_status"):

@@ -187,7 +187,9 @@ def main() -> int:
     if sitl.returncode != 0:
         failures.append(f"vehkernel-sitl exited with {sitl.returncode}\n{errors}")
 
-    def evaluate_stream(estimates_list: list[dict]) -> tuple[float, float, int, list[tuple[dict, tuple, tuple[float, float, float]]]]:
+    def evaluate_stream(
+        estimates_list: list[dict],
+    ) -> tuple[float, float, int, list[tuple[dict, tuple, tuple[float, float, float]]]]:
         worst_tilt = worst_error = 0.0
         compared = 0
         matches = []
@@ -247,7 +249,9 @@ def main() -> int:
         failures.append(f"primary attitude error reached {prim_error:.2f} deg, more than {args.max_error_deg:g} deg")
 
     if args.expect_secondary and sec_compared < 100:
-        failures.append(f"only {sec_compared} secondary estimates could be compared with the truth, expected at least 100")
+        failures.append(
+            f"only {sec_compared} secondary estimates could be compared with the truth, expected at least 100"
+        )
     if sec_tilt > args.max_tilt_deg:
         failures.append(f"secondary tilt error reached {sec_tilt:.2f} deg, more than {args.max_tilt_deg:g} deg")
     if sec_error > args.max_error_deg:

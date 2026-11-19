@@ -70,7 +70,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("in_log", help="log to cut")
     parser.add_argument("out_log", help="path for the cut")
-    parser.add_argument("--duration", type=float, required=True, help="seconds to keep, from the first estimator_restart")
+    parser.add_argument(
+        "--duration", type=float, required=True, help="seconds to keep, from the first estimator_restart"
+    )
     parser.add_argument(
         "--topics",
         default=",".join(REPLAY_TOPICS),

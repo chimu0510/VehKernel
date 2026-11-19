@@ -568,11 +568,11 @@ def log_profiles_header(profiles: list[Profile], schema: Schema) -> str:
         bw_sitl = p.bandwidth_sitl(schema)
         bw_c50c = p.bandwidth_c50c(schema)
         out += [
-            f"#ifdef CONFIG_PLATFORM_SITL",
+            "#ifdef CONFIG_PLATFORM_SITL",
             f"inline constexpr float {p.name}_bandwidth = {_float_literal(bw_sitl)};",
-            f"#else",
+            "#else",
             f"inline constexpr float {p.name}_bandwidth = {_float_literal(bw_c50c)};",
-            f"#endif",
+            "#endif",
             "",
             f"inline constexpr std::array {p.name}_entries = {{",
         ]
@@ -591,7 +591,7 @@ def log_profiles_header(profiles: list[Profile], schema: Schema) -> str:
                 out.append(f"    LogProfileEntry{{.topic_id = {tid}, .instance = {inst}, "
                            f".rate_kind = {rate_kind}, .rate_hz = {rate_hz}}},")
             if entry.kconfig:
-                out.append(f"#endif")
+                out.append("#endif")
         out += [
             "};",
             "",
@@ -675,11 +675,11 @@ def log_profile_streams_header(profiles: list[Profile], schema: Schema) -> str:
             count_sitl = sum(e.instance_count(msg_map[e.topic]) for e in p.entries)
             count_c50c = sum(e.instance_count(msg_map[e.topic]) for e in p.entries if e.kconfig is None)
             out += [
-                f"#ifdef CONFIG_PLATFORM_SITL",
+                "#ifdef CONFIG_PLATFORM_SITL",
                 f"inline constexpr std::size_t {p.name}_stream_count = {count_sitl};",
-                f"#else",
+                "#else",
                 f"inline constexpr std::size_t {p.name}_stream_count = {count_c50c};",
-                f"#endif",
+                "#endif",
                 "",
             ]
         else:
@@ -705,7 +705,7 @@ def log_profile_streams_header(profiles: list[Profile], schema: Schema) -> str:
             for inst in instances:
                 out.append(f"        map_[idx++] = &s_{entry.topic}_{inst}_;")
             if entry.kconfig:
-                out.append(f"#endif")
+                out.append("#endif")
 
         out += [
             "    }",
@@ -728,7 +728,7 @@ def log_profile_streams_header(profiles: list[Profile], schema: Schema) -> str:
             for inst in instances:
                 out.append(f"    TopicStreamOf<msg::{msg.type_name}> s_{entry.topic}_{inst}_{{{rate_expr}, {inst}}};")
             if entry.kconfig:
-                out.append(f"#endif")
+                out.append("#endif")
 
         out += [
             f"    std::array<TopicStream*, {p.name}_stream_count> map_{{}};",

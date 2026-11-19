@@ -3,7 +3,6 @@
 
 from pathlib import Path
 import sys
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "tools" / "generators") not in sys.path:

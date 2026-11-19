@@ -13,7 +13,6 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import time
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "log"))
@@ -236,9 +235,13 @@ def main() -> int:
         if y_off_err > OFFSET_TOLERANCE_UT:
             failures.append(f"Y offset error {y_off_err:.3f} µT exceeds bound {OFFSET_TOLERANCE_UT:.1f} µT")
         if x_scale_rel_err > SCALE_TOLERANCE_REL:
-            failures.append(f"X scale error {x_scale_rel_err * 100:.2f}% exceeds bound {SCALE_TOLERANCE_REL * 100:.1f}%")
+            failures.append(
+                f"X scale error {x_scale_rel_err * 100:.2f}% exceeds bound {SCALE_TOLERANCE_REL * 100:.1f}%"
+            )
         if y_scale_rel_err > SCALE_TOLERANCE_REL:
-            failures.append(f"Y scale error {y_scale_rel_err * 100:.2f}% exceeds bound {SCALE_TOLERANCE_REL * 100:.1f}%")
+            failures.append(
+                f"Y scale error {y_scale_rel_err * 100:.2f}% exceeds bound {SCALE_TOLERANCE_REL * 100:.1f}%"
+            )
 
         # ---------------------------------------------------------------------
         # Step 3: Apply parameters via mag_cal --apply and verify persistent heading

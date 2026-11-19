@@ -309,7 +309,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--preset", required=True, help="CMake preset name")
     parser.add_argument("--board", default="", help="target board name (empty for SITL)")
     parser.add_argument("--output-dir", type=Path, required=True, help="output directory (<build>/bundle)")
-    parser.add_argument("--archive", type=Path, help="output archive path (default: <build>/vehkernel-<preset>-<commit>.tar.gz)")
+    parser.add_argument(
+        "--archive", type=Path, help="output archive path (default: <build>/vehkernel-<preset>-<commit>.tar.gz)"
+    )
     parser.add_argument("--commit", help="override git commit string")
     parser.add_argument("--commit-time", type=int, help="override commit timestamp")
     args = parser.parse_args(argv)

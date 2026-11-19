@@ -20,7 +20,6 @@ from mag_cal import (  # noqa: E402
     calibrate_magnetometer,
     main,
     read_log_samples,
-    undo_calibration,
 )
 import vkulog  # noqa: E402
 

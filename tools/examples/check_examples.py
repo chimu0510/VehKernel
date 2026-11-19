@@ -71,13 +71,13 @@ def check_examples(
 
     try:
         board: Board = load_board(board_toml, soc_root)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return [f"failed to load board definition {board_toml}: {e}"]
 
     try:
         text = examples_toml.read_text(encoding="utf-8")
         data = tomllib.loads(text)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return [f"failed to load examples TOML {examples_toml}: {e}"]
 
     # 1. Firmware components declared

@@ -16,7 +16,6 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 import sys
-from typing import Sequence
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "log"))
@@ -103,7 +102,9 @@ def _rotation_case_vector(name: str, v: tuple[float, float, float]) -> tuple[flo
     raise ValueError(f"Unknown rotation {name}")
 
 
-def _make_matrix(name: str) -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
+def _make_matrix(
+    name: str,
+) -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
     c0 = _rotation_case_vector(name, (1.0, 0.0, 0.0))
     c1 = _rotation_case_vector(name, (0.0, 1.0, 0.0))
     c2 = _rotation_case_vector(name, (0.0, 0.0, 1.0))
@@ -319,7 +320,8 @@ def read_pose_log(log_path: str | Path, pose_name: str) -> PoseSummary:
 
     if max_accel_std > MAX_ACCEL_STD:
         raise CheckRefused(
-            f"Accelerometer std ({max_accel_std:.4f} m/s²) exceeds {MAX_ACCEL_STD:.2f} m/s² in {log_path}: vehicle moved"
+            f"Accelerometer std ({max_accel_std:.4f} m/s²) exceeds {MAX_ACCEL_STD:.2f} m/s² "
+            f"in {log_path}: vehicle moved"
         )
 
     if max_gyro_std > MAX_GYRO_STD:
@@ -413,7 +415,8 @@ def score_candidates(
     best = min(scores, key=lambda s: s.fit_deg)
     if best.fit_deg > MAX_FIT_DEG:
         raise CheckRefused(
-            f"Best rotation's fit ({best.rotation.name} at {best.fit_deg:.1f} deg) exceeds threshold {MAX_FIT_DEG:.1f} deg"
+            f"Best rotation's fit ({best.rotation.name} at {best.fit_deg:.1f} deg) "
+            f"exceeds threshold {MAX_FIT_DEG:.1f} deg"
         )
 
     return best, scores
