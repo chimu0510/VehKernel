@@ -123,7 +123,8 @@ def write(directory: Path, name: str, text: str) -> Path:
     ("uint64 timestamp\nfloat32[2] value\n", False),    # array length
     ("uint64 timestamp\nfloat32 value\nuint8 x\n", False),  # added field
     ("# Docs.\n@queue 3\n@rate 50\nuint64 timestamp\nfloat32 value  @unit m  # note\n", True),
-], ids=["type", "name", "array", "added", "comments-units-annotations"])
+    ("@required\nuint64 timestamp\nfloat32 value\n", True),
+], ids=["type", "name", "array", "added", "comments-units-annotations", "required"])
 def test_schema_hash_tracks_the_wire_definition(tmp_path: Path, changed: str, same: bool):
     base = schema_hash(write(tmp_path / "a", "topic", "uint64 timestamp\nfloat32 value\n"), tmp_path / "out_a", "topic")
     other = schema_hash(write(tmp_path / "b", "topic", changed), tmp_path / "out_b", "topic")

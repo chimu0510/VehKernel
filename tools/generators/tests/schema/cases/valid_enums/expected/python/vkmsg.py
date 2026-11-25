@@ -16,6 +16,7 @@ class DriveState:
     ENCODED_SIZE = 21
     QUEUE_LENGTH = 1
     INSTANCES = 1
+    REQUIRED = False
     FIELDS = ('timestamp', 'gear', 'requested', 'fault', 'speed',)
     UNITS = {'speed': 'm/s'}
     _STRUCT = struct.Struct('<Qb2hIf')

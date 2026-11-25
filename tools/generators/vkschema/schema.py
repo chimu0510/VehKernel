@@ -12,7 +12,10 @@ follows ROS .msg files, with annotations on their own lines::
     uint8 mode  @enum mode
 
 Message annotations are ``@queue N`` (a queue of N samples instead of the
-latest value), ``@instances N`` and ``@rate HZ`` (nominal publish rate). A
+latest value), ``@instances N``, ``@rate HZ`` (nominal publish rate) and
+``@required``, which marks a topic the control path depends on: a host that
+consumes the data refuses the connection when its hash differs (ADR-0006).
+The annotation takes no value and does not enter the schema hash. A
 field may carry ``@unit <unit>`` and ``@enum <enum>``, the name of the enum
 whose values it takes; the field's integer type must hold every one of them.
 
@@ -160,6 +163,7 @@ class Message:
     queue: int = 1
     instances: int = 1
     rate_hz: float = 0.0
+    required: bool = False
 
     @property
     def type_name(self) -> str:
@@ -173,7 +177,7 @@ class Message:
     def schema_hash(self) -> int:
         """64-bit hash of the definition as it appears on the wire: the message
         name and each field's type and name, in order. Comments, units and
-        MCU-side annotations do not change it, nor does the enum a field takes
+        MCU-side annotations, ``@required`` included, do not change it, nor does the enum a field takes
         or that enum's values (ADR-0006)."""
         canonical = "\n".join([self.name] + [f"{f.schema_type} {f.name}" for f in self.fields])
         return int.from_bytes(hashlib.sha256(canonical.encode()).digest()[:8], "big")
@@ -263,8 +267,13 @@ def _parse_annotation(message: Message, match: re.Match, loc: Loc, seen: dict[st
             diag.error(f"@rate needs a positive rate in Hz, got '{value or ''}'", loc)
         else:
             message.rate_hz = rate
+    elif key == "required":
+        if value is not None:
+            diag.error(f"@required takes no value, got '{value}'", loc)
+        else:
+            message.required = True
     else:
-        diag.error(f"unknown annotation @{key}; expected @queue, @instances or @rate", loc)
+        diag.error(f"unknown annotation @{key}; expected @queue, @instances, @rate or @required", loc)
 
 
 def _parse_notes(text: str, allowed: tuple[str, ...], loc: Loc, diag: Diagnostics) -> dict[str, str] | None:

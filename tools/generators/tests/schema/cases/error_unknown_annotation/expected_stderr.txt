@@ -1,1 +1,1 @@
-unknown.msg:1: error: unknown annotation @priority; expected @queue, @instances or @rate
+unknown.msg:1: error: unknown annotation @priority; expected @queue, @instances, @rate or @required

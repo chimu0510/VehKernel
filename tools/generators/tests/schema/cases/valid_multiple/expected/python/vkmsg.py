@@ -16,6 +16,7 @@ class FirstTopic:
     ENCODED_SIZE = 12
     QUEUE_LENGTH = 1
     INSTANCES = 1
+    REQUIRED = False
     FIELDS = ('timestamp', 'value',)
     UNITS = {}
     _STRUCT = struct.Struct('<QI')
@@ -58,6 +59,7 @@ class SecondTopic:
     ENCODED_SIZE = 12
     QUEUE_LENGTH = 1
     INSTANCES = 1
+    REQUIRED = False
     FIELDS = ('timestamp', 'value',)
     UNITS = {}
     _STRUCT = struct.Struct('<Qf')

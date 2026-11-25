@@ -26,6 +26,9 @@ struct SecondTopic {
     static constexpr std::size_t instances = 1;
     // Nominal publish rate; 0 when the schema declares none.
     static constexpr float nominal_rate_hz = 12.5F;
+    // A host that consumes the data refuses the connection when this topic's schema
+    // hash differs; the hash does not cover the annotation (ADR-0006).
+    static constexpr bool required = false;
     // Bytes on the wire: fields in schema order, packed little-endian (ADR-0006).
     static constexpr std::size_t encoded_size = 12;
 

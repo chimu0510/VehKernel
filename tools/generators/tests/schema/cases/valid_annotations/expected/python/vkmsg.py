@@ -16,6 +16,7 @@ class ImuLike:
     ENCODED_SIZE = 21
     QUEUE_LENGTH = 4
     INSTANCES = 2
+    REQUIRED = False
     FIELDS = ('timestamp', 'instance', 'accel',)
     UNITS = {'accel': 'm/s^2'}
     _STRUCT = struct.Struct('<QB3f')

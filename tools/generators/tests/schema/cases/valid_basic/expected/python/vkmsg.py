@@ -16,6 +16,7 @@ class AllTypes:
     ENCODED_SIZE = 55
     QUEUE_LENGTH = 1
     INSTANCES = 1
+    REQUIRED = False
     FIELDS = ('timestamp', 'flag', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'speed', 'precise', 'vector',)
     UNITS = {'speed': 'm/s', 'vector': 'rad/s'}
     _STRUCT = struct.Struct('<Q?bhiqBHIfd3f')
