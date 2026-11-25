@@ -3,6 +3,7 @@
 # caused the last reset, published by the commander five times a second and
 # whenever they change.
 @rate 5
+@required
 uint64 timestamp
 uint8 mode            @enum mode
 bool armed

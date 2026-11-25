@@ -5,6 +5,7 @@
 # with the Link as its source; its consumers drop it unless the mode accepts
 # it from that source (setpoint arbitration, ADR-0005). NaN in any field
 # leaves the vehicle uncontrolled.
+@required
 uint64 timestamp
 uint8 source                    # who sent it: a Link instance, or later the remote control
 float32 vx        @unit m/s      # forward

@@ -5,6 +5,7 @@
 # from body velocity measurements with the attitude estimator's heading. The
 # Bridge publishes it as /odom and TF without computing anything (ADR-0003).
 @rate 200
+@required
 uint64 timestamp                              # time of publication
 uint64 timestamp_sample                       # time of the body velocity measurement it was advanced by
 uint8 estimator_id                            # which estimator, 1 for dead reckoning
