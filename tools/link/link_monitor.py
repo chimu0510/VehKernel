@@ -41,7 +41,7 @@ then all NaN, and disarms; it prints the wheel speeds reached and exits
 non-zero when the vehicle disarms on the way. drive-body does the same with a
 body velocity (spec 0009): forward and right speed in m/s and yaw rate in
 rad/s, positive turning right, which the control chain allocates to the
-wheels.
+wheels. drive-body --mode companion requests COMPANION instead of TEST.
 
     link_monitor.py --udp 127.0.0.1:15600 param list
     link_monitor.py --udp 127.0.0.1:15600 param set ATT_KP 2.5
@@ -355,12 +355,13 @@ def run_control(monitor: LinkMonitor, args: argparse.Namespace) -> int:
 
 def run_drive(monitor: LinkMonitor, args: argparse.Namespace) -> int:
     """The drive and drive-body commands, once the handshake is done."""
-    test = next(number for number, name in MODES.items() if name == "TEST")
+    mode_name = getattr(args, "drive_mode", "test").upper()
+    drive_mode = next(number for number, name in MODES.items() if name == mode_name)
     topic = "body_velocity_setpoint" if args.command == "drive-body" else "actuator_setpoint"
     if topic not in monitor.session.peer_topics_by_name:
         print(f"FAIL: the MCU does not offer {topic}", file=sys.stderr)
         return 1
-    for command, request in (("mode", lambda: monitor.request_mode(test, PARAM_TIMEOUT_S)),
+    for command, request in (("mode", lambda: monitor.request_mode(drive_mode, PARAM_TIMEOUT_S)),
                              ("arm", lambda: monitor.request_arming(True, PARAM_TIMEOUT_S))):
         reply = request()
         if reply is None:
@@ -506,6 +507,8 @@ def main() -> int:
                                  "put -- before a negative first one")
     drive_body.add_argument("--duration", dest="drive_duration", type=parse_duration, required=True,
                             metavar="SECONDS", help="seconds to send the setpoints")
+    drive_body.add_argument("--mode", dest="drive_mode", choices=("test", "companion"), default="test",
+                            help="the mode to request (default test)")
     mag_read = commands.add_parser("mag-read", help="average the magnetometer at one heading and print it once")
     mag_read.add_argument("--duration", dest="read_duration", type=parse_duration, default=2.0, metavar="SECONDS",
                           help="seconds to average (default 2)")
