@@ -52,7 +52,7 @@ Rebuild the image after `.devcontainer/Dockerfile`, `pyproject.toml`, `uv.lock` 
 | In the container | On the host |
 |---|---|
 | `cmake`, `ctest` and every preset's build | The Link monitor on a serial port (`--serial /dev/ttyACM0`), including recording a log from a board |
-| SITL, and the SITL and unit tests; estimator replay and comparison (`tools/log/`) and pyulog's tools | Flashing: `tools/flash/flash_serial.py`, `stm32flash`, ArduPilot's `uploader.py` and OpenOCD |
+| SITL, and the SITL and unit tests; estimator replay and comparison (`tools/log/`) and pyulog's tools | Flashing: `tools/flash/flash_serial.py`, `tools/flash/deploy.py` (ssh to a companion computer), `stm32flash`, ArduPilot's `uploader.py` and OpenOCD |
 | clang-tidy, the generators and the license check (`reuse lint`) | `tools/bringup/run_bringup.py`, which flashes over SWD |
 
 The host tools need the board's USB devices. They read the build tree that the container wrote, and need only Python 3 with pyserial besides the tools below, at these versions:

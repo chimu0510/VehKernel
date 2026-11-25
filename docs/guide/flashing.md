@@ -65,6 +65,23 @@ tools/flash/flash_serial.py update
 
 It reads `generated/board/board.json`, `app/vehkernel.apj` and `generated/schema/python/` from the bundle, without requiring a build tree on the companion computer.
 
+### From the development host in one command
+
+When the board is wired to a companion computer reachable over ssh, `tools/flash/deploy.py` copies the build's bundle there, unpacks it and runs its `flash_serial.py`, in one command run on the development host, outside the container (#199):
+
+```bash
+tools/flash/deploy.py pi@companion
+```
+
+It deploys the archive of the `c50c-v1_1` build (`--preset` picks another board, `--archive` a bundle from CI) and warns when that build is not of the checkout's commit, so rebuild first. Arguments after the host go to `flash_serial.py`, `update` by default:
+
+```bash
+tools/flash/deploy.py pi@companion --port /dev/ttyACM1 update
+tools/flash/deploy.py pi@companion new-board
+```
+
+The bundle is unpacked into `~/vehkernel/vehkernel-<preset>-<commit>/` on the companion computer (`--remote-dir` changes `vehkernel`), replacing an older copy of the same build, and stays there for the Link monitor. ssh options such as the port and the key go in `~/.ssh/config`; `--dry-run` prints the commands without running them. Stop anything that holds the board's serial device there first, such as the ROS2 Bridge.
+
 ## Over SWD
 
 Connect an ST-Link to the board's SWD header. OpenOCD runs on the host, outside the development container, since the probe is a USB device. A new board gets the bootloader and the firmware; later, the firmware alone:

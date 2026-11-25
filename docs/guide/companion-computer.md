@@ -55,6 +55,8 @@ Copy the archive to the companion computer:
 scp build/c50c-v1_1/vehkernel-c50c-v1_1-*.tar.gz pi@companion:/home/pi/
 ```
 
+To copy the bundle and flash the board wired to the companion computer in one step, run `tools/flash/deploy.py pi@companion` on the development host instead ([Flashing](flashing.md#from-the-development-host-in-one-command)).
+
 ## Unpacking and running
 
 On the companion computer, unpack the archive:
