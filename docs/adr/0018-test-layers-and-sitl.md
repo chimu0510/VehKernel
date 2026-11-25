@@ -19,7 +19,7 @@ Tests are split into six layers, from static checks to ROS2 integration. SITL ru
   Tests that turn the wheels require the wheels to be lifted off the ground first, with output power limited.
 
   Bring-up cases live in two places. Cases that need no actuators and must work before any Link does, such as IMU wiring on a newly powered board, run in a separate bring-up image that the runner flashes over SWD and whose results it reads back over SWD; that image never configures actuator pins. Cases that move actuators run in the main firmware's test mode, started and reported over a Link, so they are guarded by arming, its checks and the emergency stop (ADR-0005). Motor-to-encoder mapping and direction runs before any closed-loop wheel speed control, because a reversed motor or encoder turns the speed loop into positive feedback. PWM frequency stays a manual measurement, since the MCU cannot observe its own output.
-- **L5 ROS2 integration**: SITL + Bridge + Nav2, run with launch_testing.
+- **L5 ROS2 integration**: SITL and the Bridge, run with launch_testing in ROS2's image (`bridge/vehkernel_bridge/test/test_sitl_bridge.py`, spec 0015). The test is skipped when `VK_SITL_EXECUTABLE` names no SITL executable. Nav2 joins it with the spec that brings Nav2.
 
 **SITL**
 
@@ -36,7 +36,7 @@ On every push:
 2. L0 and L1.
 3. L2, once recorded replay data exists.
 4. L3 with the built-in simulator.
-5. L5 with SITL and the Bridge, in ROS2's image (ADR-0027); Nav2 joins it with the spec that brings Nav2.
+5. L5 with SITL and the Bridge, in ROS2's image (ADR-0027), in the `bridge` job on both architectures, with the SITL executable of the `build` job of the same architecture; Nav2 joins it with the spec that brings Nav2.
 
 CI gives a failed test a second attempt: L3 checks judge timing on a shared runner, and a host stall can fail them with nothing wrong. An intermittent bug can then pass on its second attempt, which is the accepted cost (#186).
 

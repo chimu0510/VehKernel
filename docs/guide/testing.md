@@ -1,6 +1,6 @@
 # Testing
 
-Tests are split into six layers, L0 to L5 (ADR-0018). The directories under `test/` follow them: `unit/` and `fuzz/` (L1), `replay/` (L2), `sitl/` (L3), `hardware/` (L4) and `ros2/` (L5); L0 static checks run from the root config files and CI.
+Tests are split into six layers, L0 to L5 (ADR-0018). The directories under `test/` follow them: `unit/` and `fuzz/` (L1), `replay/` (L2), `sitl/` (L3), `hardware/` (L4); L0 static checks run from the root config files and CI. The L5 test lives in the Bridge's colcon package, `bridge/vehkernel_bridge/test/`, since colcon runs it ([ROS2 Bridge (L5)](#ros2-bridge-l5)); `ros2/` is empty until the Nav2 test of a later spec.
 
 ## Host tests and SITL tests
 
@@ -69,6 +69,10 @@ cd build/fuzz/test/fuzz
 ```
 
 A finding leaves its input in `build/fuzz/test/fuzz/artifacts/`. Run the target on that file alone to reproduce it, fix the bug, and add the case as a unit test in `test/unit/link_test.cpp`, so the `test` preset keeps checking it. A memory safety bug in a Link decoder is a security issue (`SECURITY.md`): report it privately rather than in a public issue.
+
+## ROS2 Bridge (L5)
+
+`bridge/vehkernel_bridge/test/test_sitl_bridge.py` is a `launch_testing` test that starts SITL and the Bridge on UDP and checks the outputs, arming, `/cmd_vel`, the silence and the disarm on a killed Bridge (spec 0015, [ROS2 Bridge](ros2-bridge.md#testing)). It runs in the ROS2 image, not in the development container, with `colcon test` from the workspace of the guide. The environment variable `VK_SITL_EXECUTABLE` names the SITL executable of a `sitl` build; without it the test is skipped. CI builds SITL in the development container's job and passes it to the Bridge job of the same architecture, which runs the test with `--repeat until-pass:2` as above. The test takes about 25 s, since it waits out `COM_DISARM_IDLE` (10 s).
 
 ## Bring-up image
 

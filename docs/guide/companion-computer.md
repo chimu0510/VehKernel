@@ -122,6 +122,10 @@ For a new or corrupted board, write the bootloader and firmware through the down
 tools/flash/flash_serial.py new-board
 ```
 
+## ROS2
+
+The ROS2 Bridge connects the Link to ROS2 Jazzy on the companion computer: `/odom`, the TF, `/imu/data`, the vehicle status, `/cmd_vel` and services for arming, the mode and the emergency stop. It is built from the repository with colcon, not from a bundle, and needs ROS2 Jazzy from apt on Ubuntu 24.04; its guide covers installing, building, the serial device's permissions and running it against SITL and a board ([ROS2 Bridge](ros2-bridge.md)). Both the Bridge and the Link monitor open the board's serial device, so stop the Bridge before running `link_monitor.py` on it.
+
 ## Workaround before bundles
 
 Before host tools bundles were introduced, the workaround was copying `build/<preset>/generated/` and `app/` by hand from a development host to identical relative paths on the companion computer, and passing `--msg-dir` and `--param-meta` explicitly. The bundle replaces this workaround with self-contained, reproducible, commit-tagged archives.

@@ -12,7 +12,9 @@
 
 Built, in SITL and on the C50C V1.1: attitude estimation, body velocity control for a wheeled vehicle, a USB gamepad, a Link to the development host, logging and replay, parameters, the local display and the bootloader.
 
-Not built yet: the ROS2 Bridge, vehicle models other than the wheeled one, the ROS2 test layer, and boards other than the C50C V1.1.
+Built, in SITL only so far: the ROS2 Bridge for ROS2 Jazzy ([ROS2 Bridge](docs/guide/ros2-bridge.md)), which publishes `/odom`, the TF, `/imu/data` and the vehicle status and drives the vehicle with `/cmd_vel`, and its ROS2 test layer (L5), which runs the Bridge against SITL in CI. It has not been checked on the board yet.
+
+Not built yet: Nav2 on top of the Bridge, vehicle models other than the wheeled one, and boards other than the C50C V1.1.
 
 What each milestone built and how far it was checked on hardware is in [`docs/specs/`](docs/specs/); open work is in the [issues](https://github.com/chimu0510/VehKernel/issues).
 
@@ -24,7 +26,7 @@ Vehkernel targets the boards ArduPilot and PX4 run on, and follows their convent
 |---|---|
 | MCU | STM32F407VET6 |
 | Board | C50C V1.1, the first development board ([board page](docs/boards/c50c-v1_1.md)) |
-| Companion computer | Raspberry Pi 5: the host tools bundle runs on it and talks to the board over a Link. ROS2 is planned: the Bridge does not exist yet |
+| Companion computer | Raspberry Pi 5: the host tools bundle runs on it and talks to the board over a Link. ROS2 Jazzy from apt: the Bridge runs on it ([ROS2 Bridge](docs/guide/ros2-bridge.md)) |
 
 ## Design
 
