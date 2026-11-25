@@ -57,7 +57,10 @@ enum class SetpointLevel : std::uint8_t {
 // What a mode allows (ADR-0005): whether it can be armed and entered while
 // armed, which sources may request it (and so be in control in it), the
 // setpoint levels it accepts, and whether arming in it needs the remote
-// control connected with its sticks centred.
+// control connected with its sticks centred, and whether zero setpoints count
+// as idle for the idle disarm (COM_DISARM_IDLE); they do not in COMPANION,
+// where the Bridge sends zero setpoints while ROS2 is idle. No setpoint at all
+// since arming still counts as idle in every mode.
 struct ModeRules {
     bool armable = false;
     bool enter_while_armed = false;
@@ -66,11 +69,12 @@ struct ModeRules {
     bool direct_actuator = false;
     bool body_velocity = false;
     bool needs_remote_control = false;
+    bool zero_setpoints_idle = true;
 };
 
 constexpr bool known_mode(std::uint8_t mode)
 {
-    return mode <= static_cast<std::uint8_t>(Mode::Manual);
+    return mode <= static_cast<std::uint8_t>(Mode::Companion);
 }
 
 constexpr ModeRules mode_rules(Mode mode)
@@ -86,6 +90,8 @@ constexpr ModeRules mode_rules(Mode mode)
                 .from_remote_control = true,
                 .body_velocity = true,
                 .needs_remote_control = true};
+    case Mode::Companion:
+        return {.armable = true, .from_link = true, .body_velocity = true, .zero_setpoints_idle = false};
     }
     return {};
 }

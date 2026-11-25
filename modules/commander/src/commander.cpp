@@ -43,7 +43,9 @@ void Commander::update(std::uint64_t now_us, const Inputs& inputs, const Setting
         return;
     }
     const bool setpoint_since_arming = inputs.last_setpoint_us != 0 && inputs.last_setpoint_us >= armed_at_us_;
-    if ((setpoint_since_arming && !inputs.setpoints_idle) || inputs.bringup_running) {
+    // Zero setpoints are activity where the mode says they do not count as idle (COMPANION).
+    const bool active_setpoint = !inputs.setpoints_idle || !core::mode_rules(state_.mode).zero_setpoints_idle;
+    if ((setpoint_since_arming && active_setpoint) || inputs.bringup_running) {
         active_at_us_ = now_us;
     }
     if (now_us - active_at_us_ >= to_us(settings.disarm_idle_s)) {

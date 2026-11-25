@@ -207,6 +207,7 @@ class Mode(enum.IntEnum):
     STANDBY = 0  # no source in control; nothing can be armed
     TEST = 1  # the development host in control, direct-actuator and body velocity setpoints (ADR-0018)
     MANUAL = 2  # the remote control in control, body velocity setpoints from it only
+    COMPANION = 3  # the companion computer's Link in control, body velocity from it only; zero setpoints are not idle
 
 
 class ModeResult(enum.IntEnum):

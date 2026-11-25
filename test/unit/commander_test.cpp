@@ -487,6 +487,142 @@ TEST_F(CommanderTest, TestNeedsNoRemoteControl)
 
 }  // namespace
 
+// --- COMPANION (spec 0015, ADR-0005) ---
+
+namespace {
+
+class CompanionCommanderTest : public CommanderTest {
+protected:
+    void ready_companion()
+    {
+        step(Commander::power_settle_us + cycle_us);
+        ASSERT_EQ(commander.request_mode(now, link0, Mode::Companion), ModeResult::Ok);
+    }
+
+    void arm_companion()
+    {
+        ready_companion();
+        ASSERT_EQ(commander.request_arming(now, link0, true), ArmingResult::Ok);
+        ASSERT_TRUE(commander.state().armed);
+    }
+};
+
+TEST(ModeRulesTest, CompanionIsArmableFromALinkWithBodyVelocityAndZeroSetpointsNotIdle)
+{
+    using vk::core::mode_rules;
+    using vk::core::SetpointLevel;
+    const vk::core::ModeRules rules = mode_rules(Mode::Companion);
+    EXPECT_TRUE(rules.armable);
+    EXPECT_FALSE(rules.enter_while_armed);
+    EXPECT_TRUE(rules.from_link);
+    EXPECT_FALSE(rules.from_remote_control);
+    EXPECT_FALSE(rules.direct_actuator);
+    EXPECT_TRUE(rules.body_velocity);
+    EXPECT_FALSE(rules.needs_remote_control);
+    EXPECT_FALSE(rules.zero_setpoints_idle);
+    EXPECT_TRUE(vk::core::known_mode(static_cast<std::uint8_t>(Mode::Companion)));
+    EXPECT_TRUE(vk::core::may_request(Mode::Companion, link1));
+    EXPECT_FALSE(vk::core::may_request(Mode::Companion, vk::core::remote_control));
+    EXPECT_TRUE(vk::core::mode_accepts(Mode::Companion, SetpointLevel::BodyVelocity));
+    EXPECT_FALSE(vk::core::mode_accepts(Mode::Companion, SetpointLevel::DirectActuator));
+    // Zero setpoints count as idle in every other mode.
+    for (const Mode mode : {Mode::Standby, Mode::Test, Mode::Manual}) {
+        EXPECT_TRUE(mode_rules(mode).zero_setpoints_idle);
+    }
+}
+
+TEST_F(CompanionCommanderTest, ArmsWhenARequestingLinkIsInControl)
+{
+    ready_companion();
+    EXPECT_EQ(commander.state().source, link0);
+    EXPECT_EQ(commander.request_arming(now, link1, true), ArmingResult::NotInControl);
+    EXPECT_EQ(commander.request_arming(now, link0, true), ArmingResult::Ok);
+    EXPECT_TRUE(commander.state().armed);
+    EXPECT_EQ(commander.state().mode, Mode::Companion);
+}
+
+TEST_F(CompanionCommanderTest, IsEnteredOnlyWhileDisarmed)
+{
+    arm();  // in TEST
+    EXPECT_EQ(commander.request_mode(now, link0, Mode::Companion), ModeResult::Armed);
+    EXPECT_EQ(commander.state().mode, Mode::Test);
+    // And once armed in COMPANION, it is not left for TEST or STANDBY either.
+    EXPECT_EQ(commander.request_arming(now, link0, false), ArmingResult::Ok);
+    ASSERT_EQ(commander.request_mode(now, link0, Mode::Companion), ModeResult::Ok);
+    ASSERT_EQ(commander.request_arming(now, link0, true), ArmingResult::Ok);
+    EXPECT_EQ(commander.request_mode(now, link0, Mode::Test), ModeResult::Armed);
+    EXPECT_EQ(commander.request_mode(now, link0, Mode::Companion), ModeResult::Ok) << "unchanged: not refused";
+}
+
+TEST_F(CompanionCommanderTest, TheRemoteControlCannotRequestIt)
+{
+    step(Commander::power_settle_us + cycle_us);
+    EXPECT_EQ(commander.request_mode(now, vk::core::remote_control, Mode::Companion), ModeResult::WrongSource);
+    EXPECT_EQ(commander.state().mode, Mode::Standby);
+}
+
+TEST_F(CompanionCommanderTest, AcceptsBodyVelocityFromItsLinkAndDropsTheRest)
+{
+    using vk::core::SetpointLevel;
+    arm_companion();
+    EXPECT_TRUE(commander.accepts_setpoint(link0, SetpointLevel::BodyVelocity));
+    EXPECT_FALSE(commander.accepts_setpoint(link0, SetpointLevel::DirectActuator));
+    EXPECT_FALSE(commander.accepts_setpoint(link1, SetpointLevel::BodyVelocity));
+    EXPECT_FALSE(commander.accepts_setpoint(vk::core::remote_control, SetpointLevel::BodyVelocity));
+}
+
+TEST_F(CompanionCommanderTest, ZeroSetpointsAreNotIdle)
+{
+    arm_companion();
+    inputs.setpoints_idle = true;
+    const auto idle_us = static_cast<std::uint64_t>(settings.disarm_idle_s * 1e6F);
+    // Zero setpoints, kept current, for longer than the idle time.
+    const std::uint64_t end = now + idle_us + 1'000'000;
+    while (now < end) {
+        inputs.last_setpoint_us = now;
+        step(100'000);
+    }
+    EXPECT_TRUE(commander.state().armed);
+}
+
+TEST_F(CompanionCommanderTest, NoSetpointSinceArmingStillDisarmsAfterDisarmIdle)
+{
+    arm_companion();
+    const auto idle_us = static_cast<std::uint64_t>(settings.disarm_idle_s * 1e6F);
+    step(idle_us - cycle_us);
+    EXPECT_TRUE(commander.state().armed);
+    step(cycle_us);
+    EXPECT_FALSE(commander.state().armed);
+    EXPECT_EQ(commander.state().disarm_reason, DisarmReason::Idle);
+}
+
+TEST_F(CompanionCommanderTest, StillStopsAndDisarmsOnTheSetpointTimeout)
+{
+    arm_companion();
+    inputs.setpoints_idle = true;
+    inputs.last_setpoint_us = now;
+    const auto timeout_us = static_cast<std::uint64_t>(settings.setpoint_timeout_s * 1e6F);
+    step(timeout_us);
+    EXPECT_TRUE(commander.state().armed);
+    step(cycle_us);
+    EXPECT_FALSE(commander.state().armed);
+    EXPECT_EQ(commander.state().disarm_reason, DisarmReason::SetpointTimeout);
+}
+
+TEST_F(CompanionCommanderTest, YieldsToTheRemoteControlsManualTakeover)
+{
+    using vk::core::SetpointLevel;
+    arm_companion();
+    ASSERT_EQ(commander.request_mode(now, vk::core::remote_control, Mode::Manual), ModeResult::Ok);
+    EXPECT_TRUE(commander.state().armed) << "taking over does not disarm";
+    EXPECT_EQ(commander.state().mode, Mode::Manual);
+    EXPECT_EQ(commander.state().source, vk::core::remote_control);
+    EXPECT_FALSE(commander.accepts_setpoint(link0, SetpointLevel::BodyVelocity));
+    EXPECT_TRUE(commander.accepts_setpoint(vk::core::remote_control, SetpointLevel::BodyVelocity));
+}
+
+}  // namespace
+
 // --- The RC failsafe (spec 0010) ---
 
 namespace {
