@@ -87,6 +87,35 @@ def test_handshake_reports_mismatched_schema_hashes():
     assert host.mismatched_topics == ["topic_mismatch"]
 
 
+def test_handshake_marks_the_mismatched_required_topics():
+    topics = [
+        TopicDescription(id=1, instances=1, schema_hash=0x1111, name="topic_ok"),
+        TopicDescription(id=2, instances=1, schema_hash=0x2222, name="topic_ordinary"),
+        TopicDescription(id=3, instances=1, schema_hash=0x3333, name="topic_required"),
+        TopicDescription(id=4, instances=1, schema_hash=0x4444, name="required_ok"),
+    ]
+    mcu = McuSession(topics=topics)
+    host = HostSession(
+        local_schema={
+            "topic_ok": 0x1111,
+            "topic_ordinary": 0x9999,
+            "topic_required": 0x9998,
+            "required_ok": 0x4444,
+        },
+        required_topics={"topic_required", "required_ok"},
+    )
+
+    mcu_frames = FrameReader().feed(host.make_hello())
+    reader = FrameReader()
+    for wire in mcu.handle(mcu_frames[0], now_us=1000):
+        for f in reader.feed(wire):
+            host.handle_frame(f)
+
+    assert host.handshake_done
+    assert host.mismatched_topics == ["topic_ordinary", "topic_required"]
+    assert host.mismatched_required_topics == ["topic_required"]
+
+
 def test_time_sync_computation():
     mcu = McuSession()
     host = HostSession()

@@ -36,9 +36,9 @@ class Sample:
         return cls(*cls._STRUCT.unpack(data))
 
 
-def messages(schema_hash=SAMPLE_HASH):
+def messages(schema_hash=SAMPLE_HASH, required=False):
     """A stand-in for the generated vkmsg module."""
-    cls = type("Sample", (Sample,), {"SCHEMA_HASH": schema_hash})
+    cls = type("Sample", (Sample,), {"SCHEMA_HASH": schema_hash, "REQUIRED": required})
     return types.SimpleNamespace(TOPICS={0: cls}, BY_NAME={"sample": cls})
 
 
@@ -120,6 +120,18 @@ def test_schema_mismatch_fails_the_check_and_names_the_topic():
     assert not result.passed
     assert "topic sample has a different schema hash on the MCU" in result.failures
     assert any(line.startswith("mismatch topic=sample") for line in monitor.summary())
+
+
+def test_a_required_topic_mismatch_stays_connected_and_is_marked():
+    with FakeMcu() as mcu:
+        monitor = run_monitor(mcu, messages(schema_hash=0xDEAD, required=True))
+    assert monitor.connected
+    assert [(m.name, m.required) for m in monitor.mismatches] == [("sample", True)]
+    result = check(monitor, [], tolerance=0.05)
+    assert "topic sample has a different schema hash on the MCU (required)" in result.failures
+    assert any(line.startswith("mismatch topic=sample") and line.endswith(" required=1")
+               for line in monitor.summary())
+    assert any("MISMATCH" in line and "(required)" in line for line in render(monitor, "udp", width=200))
 
 
 def test_lost_frames_fail_the_check():

@@ -587,6 +587,7 @@ class Mismatch:
     name: str
     mcu_hash: int
     local_hash: int
+    required: bool = False  # the topic is @required in the schema (ADR-0006)
 
 
 # Replies to mode, arming and emergency stop requests.
@@ -606,7 +607,8 @@ class LinkMonitor:
         self.messages = messages
         self.clock = clock
         self.local_hashes = {cls.NAME: cls.SCHEMA_HASH for cls in messages.TOPICS.values()}
-        self.session = HostSession(local_schema=self.local_hashes)
+        self.required_topics = {cls.NAME for cls in messages.TOPICS.values() if getattr(cls, "REQUIRED", False)}
+        self.session = HostSession(local_schema=self.local_hashes, required_topics=self.required_topics)
         self.reader = FrameReader()
         self.topics: dict[tuple[str, int], TopicStats] = {}
         self.time_sync: TimeSyncResult | None = None
@@ -652,7 +654,8 @@ class LinkMonitor:
     @property
     def mismatches(self) -> list[Mismatch]:
         return [
-            Mismatch(name, self.session.peer_topics_by_name[name].schema_hash, self.local_hashes[name])
+            Mismatch(name, self.session.peer_topics_by_name[name].schema_hash, self.local_hashes[name],
+                     name in self.session.mismatched_required_topics)
             for name in self.session.mismatched_topics
         ]
 
@@ -974,6 +977,7 @@ class LinkMonitor:
         lines = [link]
         lines += [
             f"mismatch topic={m.name} mcu_hash=0x{m.mcu_hash:016X} local_hash=0x{m.local_hash:016X}"
+            + (" required=1" if m.required else "")
             for m in self.mismatches
         ]
         lines += [
@@ -1055,7 +1059,8 @@ def check(monitor: LinkMonitor, expectations: list[RateExpectation], tolerance: 
         result.failures.append("no handshake with the MCU")
         return result
     for mismatch in monitor.mismatches:
-        result.failures.append(f"topic {mismatch.name} has a different schema hash on the MCU")
+        result.failures.append(f"topic {mismatch.name} has a different schema hash on the MCU"
+                               + (" (required)" if mismatch.required else ""))
     if monitor.lost:
         result.failures.append(f"{monitor.lost} frames lost")
     if monitor.crc_errors:

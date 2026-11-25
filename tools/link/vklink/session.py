@@ -6,6 +6,7 @@ Implements both Host-side Link session and MCU-side Link session for tools and t
 
 import enum
 import struct
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .enums import (
@@ -249,8 +250,11 @@ class HostSession:
         self,
         local_schema: dict[str, int] | None = None,
         supported_versions: list[int] | None = None,
+        required_topics: Iterable[str] = (),
     ):
         self.local_schema = local_schema or {}
+        # Topics marked @required in the schema (ADR-0006); a mismatch of one is recorded apart.
+        self.required_topics = frozenset(required_topics)
         # Every version from the oldest the host speaks: a version only adds to the one before (ADR-0002).
         self.supported_versions = supported_versions or list(range(OLDEST_PROTOCOL_VERSION, PROTOCOL_VERSION + 1))
         self.writer = FrameWriter()
@@ -260,6 +264,7 @@ class HostSession:
         self.peer_topics: dict[int, TopicDescription] = {}
         self.peer_topics_by_name: dict[str, TopicDescription] = {}
         self.mismatched_topics: list[str] = []
+        self.mismatched_required_topics: list[str] = []
         self.param_set_hash = 0
         self.param_count = 0
 
@@ -361,6 +366,7 @@ class HostSession:
             self.peer_topics.clear()
             self.peer_topics_by_name.clear()
             self.mismatched_topics.clear()
+            self.mismatched_required_topics.clear()
             if topic_count == 0:
                 self.handshake_done = True
 
@@ -379,6 +385,8 @@ class HostSession:
             self.peer_topics_by_name[name] = desc
             if name in self.local_schema and self.local_schema[name] != schema_hash:
                 self.mismatched_topics.append(name)
+                if name in self.required_topics:
+                    self.mismatched_required_topics.append(name)
             if len(self.peer_topics) == self.expected_topic_count:
                 self.handshake_done = True
 

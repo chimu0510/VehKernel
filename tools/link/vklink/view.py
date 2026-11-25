@@ -96,7 +96,8 @@ def render(monitor: LinkMonitor, target: str, width: int = 120) -> list[str]:
     for _, gamepad in monitor.latest("manual_control_input"):
         lines.append("gamepad        " + gamepad_line(gamepad).removeprefix("gamepad "))
     for mismatch in monitor.mismatches:
-        lines.append(f"MISMATCH       topic {mismatch.name}: schema hash differs from the local build")
+        lines.append(f"MISMATCH       topic {mismatch.name}: schema hash differs from the local build"
+                     + (" (required)" if mismatch.required else ""))
 
     lines += ["", f"{'Topic':<20} {'Inst':>4} {'Rate Hz':>9} {'Messages':>9}  Latest"]
     for (name, instance), topic in sorted(monitor.topics.items()):
