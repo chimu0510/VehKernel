@@ -117,6 +117,7 @@ ament_target_dependencies(bridge PUBLIC tf2_ros std_srvs)
 target_compile_options(bridge PRIVATE -Wall -Wextra -Wshadow -Werror)
 
 install(TARGETS bridge DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -143,6 +144,12 @@ if(BUILD_TESTING)
   ament_add_gtest(test_request_tracker test/test_request_tracker.cpp)
   target_link_libraries(test_request_tracker vehkernel_bridge_core)
   target_compile_options(test_request_tracker PRIVATE -Wall -Wextra -Wshadow -Werror)
+
+  # L5 (ADR-0018, spec 0015): SITL and the Bridge in ROS2. The test needs a SITL build, whose
+  # executable VK_SITL_EXECUTABLE names; without it the test is skipped and passes. The timeout
+  # covers the 10 s of COM_DISARM_IDLE it waits out, with room for a slow runner.
+  find_package(launch_testing_ament_cmake REQUIRED)
+  add_launch_test(test/test_sitl_bridge.py TIMEOUT 180)
 endif()
 
 if(VK_CLANG_TIDY)
