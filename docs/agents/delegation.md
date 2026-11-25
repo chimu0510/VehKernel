@@ -1,4 +1,4 @@
-# Delegation: implementation through agy
+# Delegation: implementation through agy or a Claude Code session
 
 An agent that has the [Antigravity CLI](https://antigravity.google/docs/cli-using) (agy) and the `agy-delegate` wrapper of the Antigravity plugin for Claude Code splits a ticket between two roles: the main agent decides and accepts, agy writes the code. An agent without them does both roles itself, by the same rules.
 
@@ -108,6 +108,16 @@ Images for flashing are still built on `main`.
 - No removing, skipping or loosening an existing test, and no changing a tolerance, threshold or number the acceptance criteria give. If one seems wrong, stop and report it.
 - No reading or quoting of anything under `vendor/`, and no credentials.
 - When the spec looks wrong or the change would contradict an ADR, stop and report it instead of changing the design.
+
+## Delegating to a Claude Code session
+
+The main agent may delegate a ticket to another Claude Code session instead of agy, on a cheaper model such as Sonnet, started from the main agent's own session (in the Claude desktop app, its tool for starting a session), with no external MCP server or sandbox. The maintainer chooses which kind of delegation a spec or a ticket gets; the roles and the review stay as above.
+
+- **One ticket, one session.** The main agent claims the ticket, creates its worktree in `$VK_WORKTREES` as **One ticket, step by step** says (step 2), and starts a fresh session in that worktree with a brief that holds what an agy prompt holds (step 3), except the sandbox limits. Every later round on the ticket is a message to the same session; a session is never given a second ticket.
+- **What the session does.** It writes the code and the tests and runs the checks itself, in the development container as step 6 lists, with `vk_wt` in the worktree. It reports the files it changed, the checks it ran with their results, each acceptance criterion with its state, and its doubts.
+- **What the session must not do.** Everything in **What agy must not do** applies, except that it may build and test in the development container. It never commits, pushes, merges, changes branches or worktrees, or writes to the issue tracker, the specs or the ADRs.
+- **Acceptance.** The main agent reads the whole diff, reruns the checks from a clean build tree, and lands the ticket as step 8 says. A session's report is not proof that a check passed.
+- **Handoff.** The session's name goes in the conversation with the maintainer, never into an issue or memory, as an agy conversation id does.
 
 ## Other agy-bridge tools
 
