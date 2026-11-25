@@ -19,3 +19,8 @@ __pycache__/
 .DS_Store
 /.claude/settings.local.json
 /.claude/worktrees/
+
+# colcon workspace trees of the Bridge, built in bridge/ (ADR-0027).
+/bridge/build/
+/bridge/install/
+/bridge/log/
