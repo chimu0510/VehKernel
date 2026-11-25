@@ -399,6 +399,10 @@ A mode in which the test runner on the development host is in control, accepting
 A mode in which the remote control is in control and drives the vehicle by body velocity; the remote control can enter it at any time, armed or not, which is how it takes over.
 _Avoid_: RC mode, joystick mode
 
+**Companion Mode**:
+A mode in which the Link that requested it, usually the Bridge's, is in control and drives the vehicle by body velocity; it is entered only while disarmed and has no idle disarm, so the vehicle stops and stays armed while the companion computer sends zero setpoints.
+_Avoid_: offboard mode, ROS mode
+
 **Example**:
 A separate executable for one board that exercises one component, with its lesson.
 _Avoid_: sample, demo

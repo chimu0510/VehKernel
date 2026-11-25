@@ -36,6 +36,7 @@ On every push:
 2. L0 and L1.
 3. L2, once recorded replay data exists.
 4. L3 with the built-in simulator.
+5. L5 with SITL and the Bridge, in ROS2's image (ADR-0027); Nav2 joins it with the spec that brings Nav2.
 
 CI gives a failed test a second attempt: L3 checks judge timing on a shared runner, and a host stall can fail them with nothing wrong. An intermittent bug can then pass on its second attempt, which is the accepted cost (#186).
 

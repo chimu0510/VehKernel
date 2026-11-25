@@ -1,0 +1,24 @@
+# The Bridge is a C++ rclcpp node over the custom protocol, built against the generated codecs
+
+The Bridge (ADR-0003) runs on the companion computer and turns one Link into ROS2 topics, services and parameters. It is written in C++ on rclcpp, for one ROS2 release at a time, starting with Jazzy on Ubuntu 24.04. It reuses what the firmware already has for the custom protocol: the generated message headers (`vk/msg/*.hpp`, ADR-0006), which are header-only and build on any host, and the Link's framing code (COBS, CRC16 and frame parsing in `modules/link`). It adds the host side of the session in C++: the handshake, per-topic schema hash comparison, time synchronization and the control and parameter messages, as `tools/link/vklink/session.py` does in Python for the tools.
+
+- **Source tree**: `bridge/` holds colcon packages: `vehkernel_msgs` (ROS2 messages and services that standard packages lack, such as the vehicle status) and `vehkernel_bridge` (the node). Their CMake runs `tools/generators/generate_schema.py` from the repository with the system Python, which needs only the standard library, so the Bridge needs a checkout of the whole repository, not only `bridge/`.
+- **Build and run on the companion computer**: ROS2 is installed from its own apt repository on Ubuntu, and the Bridge is built with colcon, as ROS2 packages usually are. The Bridge is not in the host tools bundle (ADR-0026): the bundle holds no native program, and a ROS2 node is built against the ROS2 installed where it runs.
+- **CI**: the Bridge builds and runs its tests in the official `ros:jazzy-ros-base` image, referenced by digest (ADR-0016), on linux/amd64 and linux/arm64, beside the development container's jobs. The development container stays free of ROS2.
+- **Frames**: the MCU uses north-east-down and forward-right-down (ADR-0014); ROS2 uses east-north-up and forward-left-up (REP 103). The Bridge converts at its boundary, so the MCU never deals with ROS2's conventions, as it never deals with TF.
+- **Time**: every message the Bridge publishes is stamped with the MCU's sample time, converted to the companion computer's clock with the offset from the protocol's time synchronization (ADR-0002).
+- **Compatibility**: the Bridge compares schema hashes per topic (ADR-0006). It disables a topic whose hash differs, reports it, and refuses the connection only when a topic marked `@required` differs.
+- **Setpoints**: the Bridge is one more Link host. It requests `COMPANION` (ADR-0005), so the Link it uses becomes the source in control, and its setpoints go through setpoint arbitration like any Link's.
+
+## Considered Options
+
+- **Python on rclpy, reusing `vklink`**: rejected. It would be done sooner, but the Bridge stamps and forwards every IMU sample and the TF at their rates on a Raspberry Pi 5, and keeps doing so beside the ROS2 nodes that use them. A C++ node keeps that latency and CPU use low and predictable. ADR-0026 had already expected the Bridge to be the first native program for the companion computer.
+- **The Bridge in a ROS2 container on the companion computer**: not adopted. Pinning by image digest would match the development container, but most users already run ROS2 natively on the companion computer, beside the nodes the Bridge talks to; the container is kept for CI.
+- **A protocol version that lets a host announce itself as the Bridge**: rejected for now. Any Link can already enter `TEST` and drive the wheels; only `COMPANION`'s rules differ. The Link that requests `COMPANION` is the source in control, so the Bridge needs no identity of its own on the MCU. `SERIALn_FUNCTION` (ADR-0012) can still restrict a port later.
+- **Generated ROS2 messages for every topic**: deferred. The Bridge publishes standard messages where they exist (`nav_msgs/Odometry`, `sensor_msgs/Imu`) and only the vehicle status as its own message; a generator for the rest waits until a user needs raw topics in ROS2.
+
+## Consequences
+
+- A change to the schema or the protocol is also a change to the Bridge: the generated headers update on their own, but a new frame type or field the Bridge forwards needs code in `vehkernel_bridge`.
+- The Bridge follows one ROS2 release. Moving to the next LTS release is a deliberate change of this ADR and of the CI image.
+- Nav2 on Jazzy sends `geometry_msgs/TwistStamped` on `/cmd_vel` by default, so the Bridge takes `TwistStamped` by default and `Twist` when a parameter says so.

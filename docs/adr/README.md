@@ -49,3 +49,4 @@ ADRs are living records with no status field: each one always reads as the curre
 | [0024](0024-c50c-v1_1-board.md) | The C50C V1.1: an STM32F407 robot controller with the Vehkernel bootloader on its two serial Links |
 | [0025](0025-board-examples.md) | Examples are separate executables per board, ordered by a checked examples.toml |
 | [0026](0026-host-tools-bundle.md) | The host tools reach a companion computer as a bundle built with the firmware |
+| [0027](0027-ros2-bridge.md) | The Bridge is a C++ rclcpp node over the custom protocol, built against the generated codecs |
