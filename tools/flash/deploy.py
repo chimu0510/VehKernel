@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: copying {bundle.archive.name} to {args.host} failed with exit code {copied.returncode}",
               file=sys.stderr)
         return 1
-    print(f"Running flash_serial.py {shlex.join(flash_args)} on {args.host}")
+    print(f"Running flash_serial.py {shlex.join(flash_args)} on {args.host}", flush=True)
     flashed = subprocess.run(flash, check=False)
     if flashed.returncode == SSH_FAILED:
         print(f"FAIL: ssh to {args.host} failed", file=sys.stderr)
