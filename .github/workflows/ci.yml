@@ -74,6 +74,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # clang-tidy with the repository .clang-tidy, every finding an error (ADR-0018).
+      # The script below is one single-quoted bash argument: no apostrophes in it.
       - name: Build and test the Bridge with colcon
         timeout-minutes: 30
         run: |
@@ -81,7 +83,6 @@ jobs:
             ros:jazzy-ros-base@sha256:5147d3ae250ce754afd399f6bfec15b33dd4e473ca357e30432a3182031bfad6 \
             bash -eo pipefail -c '
               source /opt/ros/jazzy/setup.bash
-              # clang-tidy with the repository's .clang-tidy, every finding an error (ADR-0018).
               apt-get update
               apt-get install -y --no-install-recommends clang-tidy
               colcon build --cmake-args -DVK_CLANG_TIDY=ON
