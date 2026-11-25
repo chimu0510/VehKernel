@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Requests a vehicle mode (ADR-0005, ADR-0027, spec 0015), on /vehkernel/set_mode.
+# The mode is given by name or by value. The names and values are those of the
+# schema's mode enum (schema/enum/mode.enum): STANDBY 0, TEST 1, MANUAL 2,
+# COMPANION 3, and the Bridge reads them from the generated headers.
+
+# The mode's name, in any letter case. Empty when the mode is given by value.
+string mode_name
+
+# The mode's value. -1 when the mode is given by name; any other negative value
+# or one above 255 is refused. When both are given they must name the same mode.
+int32 mode_value -1
+---
+# Whether the vehicle is now in the requested mode.
+bool accepted
+
+# Why not, in a sentence, with the MCU's reason when it refused; empty when accepted.
+string reason

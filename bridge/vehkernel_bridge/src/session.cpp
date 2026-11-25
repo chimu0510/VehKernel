@@ -394,6 +394,32 @@ bool Session::send_frame(FrameType type, std::span<const std::uint8_t> body)
     return write_frame(type, body);
 }
 
+bool Session::send_topic_data(std::string_view name, std::uint8_t instance, std::span<const std::uint8_t> message)
+{
+    if (state_ != SessionState::Connected) {
+        return false;
+    }
+    const auto disabled = std::find_if(info_.disabled_topics.begin(), info_.disabled_topics.end(),
+                                       [name](const DisabledTopic& topic) { return topic.name == name; });
+    if (disabled != info_.disabled_topics.end()) {
+        return false;
+    }
+    const auto peer = std::find_if(peer_topics_.begin(), peer_topics_.end(),
+                                   [name](const auto& entry) { return entry.second.name == name; });
+    if (peer == peer_topics_.end()) {
+        return false;
+    }
+    std::array<std::uint8_t, vk::link::max_body_size> body{};
+    if (message.size() + 3 > body.size()) {
+        return false;
+    }
+    BodyWriter writer(body);
+    writer.u16(peer->first);
+    writer.u8(instance);
+    writer.bytes(message);
+    return write_frame(FrameType::TopicData, writer.written());
+}
+
 bool Session::write_frame(FrameType type, std::span<const std::uint8_t> body)
 {
     const std::size_t size = writer_.write(type, body, wire_);

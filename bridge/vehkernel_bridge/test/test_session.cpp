@@ -718,5 +718,60 @@ TEST_F(SessionTest, HostFramesAreNumberedInOrder)
     EXPECT_EQ(host_reader.stats().lost, 0U);
 }
 
+TEST_F(SessionTest, SendsATopicMessageToATopicTheMcuAnnounced)
+{
+    connect();
+    vk::msg::BodyVelocitySetpoint setpoint{};
+    setpoint.vx = 0.25F;
+    setpoint.vy = -0.5F;
+    setpoint.yaw_rate = 1.5F;
+    EXPECT_TRUE(session.send_topic(0, setpoint));
+
+    const auto frames = sent_of(FrameType::TopicData);
+    ASSERT_EQ(frames.size(), 1U);
+    BodyReader reader(frames[0].body);
+    EXPECT_EQ(reader.u16(), vk::msg::BodyVelocitySetpoint::topic_id);
+    EXPECT_EQ(reader.u8(), 0);
+    vk::msg::BodyVelocitySetpoint decoded{};
+    ASSERT_TRUE(vk::msg::BodyVelocitySetpoint::decode(reader.rest(), decoded));
+    EXPECT_EQ(decoded.vx, 0.25F);
+    EXPECT_EQ(decoded.vy, -0.5F);
+    EXPECT_EQ(decoded.yaw_rate, 1.5F);
+}
+
+TEST_F(SessionTest, SendsNoTopicDataBeforeTheHandshakeOrToATopicTheMcuDidNotAnnounce)
+{
+    vk::msg::BodyVelocitySetpoint setpoint{};
+    EXPECT_FALSE(session.send_topic(0, setpoint));  // not connected
+    session.poll();
+    EXPECT_FALSE(session.send_topic(0, setpoint));  // handshaking
+    mcu_handshake(vehicle_topics());
+    session.poll();
+    sent();
+    EXPECT_TRUE(session.send_topic(0, setpoint));
+
+    // An MCU that does not announce the setpoint topic: nothing to send it to.
+    transport.lost = true;
+    run(4 * second);
+    transport.lost = false;
+    session.poll();
+    mcu_handshake({announce<vk::msg::VehicleStatus>(), announce<vk::msg::VehicleLocalOdometry>()});
+    session.poll();
+    EXPECT_FALSE(session.send_topic(0, setpoint));
+}
+
+TEST_F(SessionTest, SendsNoTopicDataAfterTheConnectionIsRefused)
+{
+    session.poll();
+    mcu_handshake({announce<vk::msg::BodyVelocitySetpoint>(0xBAD), announce<vk::msg::VehicleStatus>(),
+                   announce<vk::msg::VehicleLocalOdometry>()});
+    session.poll();
+    ASSERT_EQ(disconnects.size(), 1U);
+    ASSERT_EQ(disconnects[0].reason, DisconnectReason::RequiredTopicMismatch);
+    sent();
+    EXPECT_FALSE(session.send_topic(0, vk::msg::BodyVelocitySetpoint{}));
+    EXPECT_TRUE(sent_of(FrameType::TopicData).empty());
+}
+
 }  // namespace
 }  // namespace vk::bridge

@@ -152,5 +152,38 @@ TEST_F(ImuNoiseTest, DoesNothingBeforeTheFirstConnection)
     EXPECT_FALSE(reply(reader_, "EKF_GYR_NOISE", 0.0011F, 2, ms));
 }
 
+TEST(FloatParamReaderTest, ReadsAnySingleParameterAndAsksAgainUntilItIsAnswered)
+{
+    std::vector<std::string> asked;
+    FloatParamReader reader(
+        {"COM_SP_TIMEOUT"}, "the check is skipped",
+        [&asked](FrameType, std::span<const std::uint8_t> body) {
+            asked.emplace_back(reinterpret_cast<const char*>(body.data()) + 1, body[0]);
+            return true;
+        },
+        {}, 500 * ms);
+    reader.restart(0);
+    reader.poll(600 * ms);
+    ASSERT_EQ(asked.size(), 2U);
+    EXPECT_EQ(asked[1], "COM_SP_TIMEOUT");
+    EXPECT_FALSE(reader.complete());
+
+    std::array<std::uint8_t, 64> storage{};
+    BodyWriter writer(storage);
+    writer.u16(0);
+    writer.u16(1);
+    writer.u8(2);
+    writer.float32(0.5F);
+    writer.u8(0);
+    const std::string name = "COM_SP_TIMEOUT";
+    writer.u8(static_cast<std::uint8_t>(name.size()));
+    writer.bytes({reinterpret_cast<const std::uint8_t*>(name.data()), name.size()});
+    EXPECT_TRUE(reader.on_frame(Frame{5, FrameType::ParamValue, 0, writer.written()}, 700 * ms));
+    EXPECT_TRUE(reader.complete());
+    EXPECT_EQ(reader.value(0), 0.5F);
+    reader.poll(5'000 * ms);
+    EXPECT_EQ(asked.size(), 2U);
+}
+
 }  // namespace
 }  // namespace vk::bridge

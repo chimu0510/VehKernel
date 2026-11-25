@@ -21,6 +21,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -153,6 +154,19 @@ public:
     // connected, the version lacks the frame, or the transport refused it.
     bool send_frame(vk::link::FrameType type, std::span<const std::uint8_t> body);
 
+    // Sends a message as inbound topic data, for a topic the MCU announced and whose
+    // schema hash agrees; false when not connected, the MCU did not announce the
+    // topic, its hash differs (the topic is disabled), or the transport refused it.
+    template <class Message>
+    bool send_topic(std::uint8_t instance, const Message& message)
+    {
+        std::array<std::uint8_t, Message::encoded_size> bytes{};
+        if (message.encode(bytes) != bytes.size()) {
+            return false;
+        }
+        return send_topic_data(Message::topic_name, instance, bytes);
+    }
+
     [[nodiscard]] SessionState state() const { return state_; }
     [[nodiscard]] bool connected() const { return state_ == SessionState::Connected; }
     [[nodiscard]] const ConnectionInfo& info() const { return info_; }
@@ -181,6 +195,7 @@ private:
     void complete_handshake();
     void send_time_sync(std::uint64_t now_us);
     bool write_frame(vk::link::FrameType type, std::span<const std::uint8_t> body);
+    bool send_topic_data(std::string_view name, std::uint8_t instance, std::span<const std::uint8_t> message);
     void fail(DisconnectReason reason, std::string detail, std::vector<std::string> required_topics = {});
 
     Transport& transport_;
