@@ -1,6 +1,6 @@
 # Spec 0015: the ROS2 Bridge, enough for Nav2 to drive
 
-**Status**: in progress. Issue: [#191](https://github.com/chimu0510/VehKernel/issues/191); tickets #192 to #198, with the hardware check in #198.
+**Status**: in progress. Issue: [#191](https://github.com/chimu0510/VehKernel/issues/191); tickets #192 to #198, with the hardware check in #198; #192 to #197 are done and the hardware check is open.
 
 Until this spec is done, this file and its issue carry the same spec; update both in the same edit.
 
@@ -69,7 +69,7 @@ Deliver the fifteenth milestone: **a ROS2 Jazzy Bridge on the companion computer
     - **This Link in control**: the MCU does not tell a host which Link instance it is on. The Bridge learns it as the source in control of the first `vehicle_status` after the MCU accepted its own request for `COMPANION` on this connection, or takes it from the `link_instance` parameter. Until it knows, it sends no zero setpoints, so a Bridge started against a vehicle another host armed does not keep that vehicle armed.
     - Services under `/vehkernel/`: `arm` (`std_srvs/SetBool`), `set_mode` (`vehkernel_msgs/SetMode`, by name or value), `emergency_stop` (`std_srvs/SetBool`). Each waits for the acknowledgement and returns the MCU's reason text when refused, or a timeout.
   - **Not forwarded**: setpoints while a required topic differs; the Bridge then refuses the connection and says which topic.
-- **Build and run on the companion computer**: ROS2 Jazzy from its apt repository on Ubuntu 24.04, a colcon workspace with the repository checked out under `src/`, `colcon build --packages-up-to vehkernel_bridge`. A guide, `docs/guide/ros2-bridge.md`, covers it, with the serial device's permissions and a launch file example.
+- **Build and run on the companion computer**: ROS2 Jazzy from its apt repository on Ubuntu 24.04, a colcon workspace with the repository checked out under `src/`, `colcon build --base-paths src/VehKernel/bridge --packages-up-to vehkernel_bridge` (the repository's top level is a CMake project, which colcon takes for one package and does not descend into). A guide, `docs/guide/ros2-bridge.md`, covers it, with the serial device's permissions and a launch file example.
 - **CI**: a job per architecture in `ros:jazzy-ros-base` by digest, building `bridge/` with colcon and running its unit tests and the SITL test below, with SITL built in the development container's job and passed as an artifact.
 
 ## Testing Decisions
