@@ -39,7 +39,7 @@
 | `app/` | Entry points: firmware image and SITL executable |
 | `boards/` | Board definitions and board defconfigs |
 | `bootloader/` | The Vehkernel bootloader |
-| `bridge/` | ROS2 Bridge for the companion computer; a placeholder |
+| `bridge/` | ROS2 Bridge for the companion computer (ADR-0027, spec 0015): the colcon packages `vehkernel_msgs` and `vehkernel_bridge` |
 | `cmake/` | Toolchain, Kconfig integration, generator invocation and the layering rules |
 | `core/` | Bus, work queues, parameter runtime and the types shared by modules and Links |
 | `docs/` | This documentation |
