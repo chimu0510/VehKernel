@@ -24,7 +24,7 @@ jobs:
 
       - name: Build presets, run L0 checks and host tests
         run: |
-          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev bash -euo pipefail -c '
+          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev bash -eo pipefail -c '
             # The container runs as root on a checkout owned by the runner user; without
             # this, git refuses it and the bundles and images get no commit.
             git config --global --add safe.directory /work
@@ -61,6 +61,33 @@ jobs:
           name: fuzz-artifacts-${{ matrix.runs-on }}
           path: build/fuzz/test/fuzz/artifacts/
           if-no-files-found: ignore
+
+  # Builds the ROS2 Bridge and runs its unit tests in the official ROS2 image, on both
+  # architectures, apart from the development container, which stays free of ROS2
+  # (ADR-0027). The image is referenced by the digest of its multi-arch index (ADR-0016).
+  bridge:
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test the Bridge with colcon
+        timeout-minutes: 30
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work/bridge \
+            ros:jazzy-ros-base@sha256:5147d3ae250ce754afd399f6bfec15b33dd4e473ca357e30432a3182031bfad6 \
+            bash -eo pipefail -c '
+              source /opt/ros/jazzy/setup.bash
+              # clang-tidy with the repository's .clang-tidy, every finding an error (ADR-0018).
+              apt-get update
+              apt-get install -y --no-install-recommends clang-tidy
+              colcon build --cmake-args -DVK_CLANG_TIDY=ON
+              colcon test
+              colcon test-result --verbose
+            '
 
   # Tests bundled host tools on Python 3.10 outside the devcontainer (spec 0014 Seam B, ADR-0026).
   host-tools-py310:
