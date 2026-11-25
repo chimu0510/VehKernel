@@ -400,7 +400,7 @@ A mode in which the remote control is in control and drives the vehicle by body 
 _Avoid_: RC mode, joystick mode
 
 **Companion Mode**:
-A mode in which the Link that requested it, usually the Bridge's, is in control and drives the vehicle by body velocity; it is entered only while disarmed and has no idle disarm, so the vehicle stops and stays armed while the companion computer sends zero setpoints.
+A mode in which the Link that requested it, usually the Bridge's, is in control and drives the vehicle by body velocity; it is entered only while disarmed, and zero setpoints do not count as idle in it, so the vehicle stops and stays armed while the companion computer sends them.
 _Avoid_: offboard mode, ROS mode
 
 **Example**:

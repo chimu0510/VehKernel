@@ -48,7 +48,7 @@ Deliver the fifteenth milestone: **a ROS2 Jazzy Bridge on the companion computer
 - **`COMPANION` mode** (ADR-0005), value 3 in `schema/enum/mode.enum`:
   - Armable; not entered while armed; requested by a Link, which becomes the source in control; accepts body velocity setpoints only. Direct-actuator setpoints in `COMPANION` and the attitude level wait for a vehicle that needs them (ADR-0003).
   - The output cap of `TEST` applies (ADR-0005, "Actuator output is capped by a parameter, low by default"), and so does the setpoint timeout `COM_SP_TIMEOUT`: a gap after the first setpoint stops and disarms.
-  - No idle disarm: `COM_DISARM_IDLE` does not apply in `COMPANION`, because the Bridge sends zero setpoints while ROS2 is idle (below). A `ModeRules` field says so, as the other per-mode rules do.
+  - Zero setpoints are not idle: `COM_DISARM_IDLE` does not disarm on zero setpoints in `COMPANION`, because the Bridge sends them while ROS2 is idle (below). No setpoint at all since arming still disarms after `COM_DISARM_IDLE`, so a vehicle armed and left without a source does not stay armed. A `ModeRules` field says so, as the other per-mode rules do.
   - The remote control's takeover and the emergency stop work as in every mode.
   - The Link monitor gains `COMPANION` in its mode request and the local display and the Link tools name it, all from the enum.
 - **`@required`** (ADR-0006): a schema annotation on a message; the generator emits it into the C++ headers (`static constexpr bool required`) and the Python module. This spec marks `body_velocity_setpoint`, `vehicle_status` and `vehicle_local_odometry`. The Link monitor keeps its behaviour (stays connected, names the mismatches, fails `--check`), and adds whether each mismatch is required.
@@ -73,7 +73,7 @@ Deliver the fifteenth milestone: **a ROS2 Jazzy Bridge on the companion computer
 
 ## Testing Decisions
 
-- **Seam A: the mode (L1).** Unit tests of `mode_rules` and the commander: `COMPANION` arms from a Link, refuses entering while armed, accepts body velocity only, drops direct-actuator setpoints, has no idle disarm, keeps the setpoint timeout, and yields to the remote control.
+- **Seam A: the mode (L1).** Unit tests of `mode_rules` and the commander: `COMPANION` arms from a Link, refuses entering while armed, accepts body velocity only, drops direct-actuator setpoints, does not idle-disarm on zero setpoints but does with no setpoint since arming, keeps the setpoint timeout, and yields to the remote control.
 - **Seam B: `COMPANION` in SITL (L3).** A SITL check through `vklink`: request `COMPANION`, arm, send body velocity setpoints and see the wheels move; send zeros for longer than `COM_DISARM_IDLE` and stay armed; stop sending and see stop and disarm after `COM_SP_TIMEOUT`.
 - **Seam C: `@required` (L0, L1).** Generator tests with expected output for a required and an ordinary message; a host tool test that a mismatch of a required topic is flagged as required.
 - **Seam D: the Bridge's pieces (L1, gtest in colcon).** The frame conversion functions; the session against frames captured from SITL or built with the generated encoders (handshake, a disabled topic, a refused required topic, time synchronization, reconnection); `/cmd_vel` mapping and the zero-setpoint timer with a fake clock.
