@@ -12,6 +12,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(vehkernel_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 # The generator needs only the standard library of the system's Python (ADR-0027).
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
@@ -68,6 +72,7 @@ target_include_directories(vehkernel_bridge_link PUBLIC ${VK_ROOT}/modules/link/
 # The session and the transports, free of rclcpp so that gtest can drive the session.
 add_library(vehkernel_bridge_core STATIC
   src/session.cpp
+  src/imu_noise.cpp
   src/serial_transport.cpp
   src/udp_transport.cpp)
 target_include_directories(vehkernel_bridge_core PUBLIC
@@ -76,9 +81,18 @@ target_include_directories(vehkernel_bridge_core PUBLIC
 target_link_libraries(vehkernel_bridge_core PUBLIC vehkernel_bridge_link)
 add_dependencies(vehkernel_bridge_core vehkernel_bridge_schema)
 
+# The outputs as ROS2 messages: they need ROS2's message packages but no node, so
+# that gtest can cover them.
+add_library(vehkernel_bridge_outputs STATIC src/outputs.cpp)
+target_include_directories(vehkernel_bridge_outputs PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${schema_dir}>)
+ament_target_dependencies(vehkernel_bridge_outputs PUBLIC vehkernel_msgs nav_msgs sensor_msgs geometry_msgs)
+add_dependencies(vehkernel_bridge_outputs vehkernel_bridge_schema)
+
 # Warnings are errors, as for the rest of Vehkernel (ADR-0018). Third-party
 # headers (rclcpp's) are system includes and stay out of it.
-foreach(target vehkernel_bridge_link vehkernel_bridge_core)
+foreach(target vehkernel_bridge_link vehkernel_bridge_core vehkernel_bridge_outputs)
   target_compile_options(${target} PRIVATE -Wall -Wextra -Wshadow -Werror)
 endforeach()
 
@@ -89,13 +103,14 @@ endforeach()
 # header filter does not cover bridge/, so the filter is given here, naming the
 # Bridge's own headers and not the generated ones.
 option(VK_CLANG_TIDY "Run clang-tidy on the Bridge's own sources" OFF)
-set(bridge_tidy_targets vehkernel_bridge_core bridge)
+set(bridge_tidy_targets vehkernel_bridge_core vehkernel_bridge_outputs bridge)
 if(BUILD_TESTING)
-  list(APPEND bridge_tidy_targets test_session)
+  list(APPEND bridge_tidy_targets test_session test_frames test_outputs test_imu_noise)
 endif()
 
 add_executable(bridge src/main.cpp src/bridge_node.cpp)
-target_link_libraries(bridge PRIVATE vehkernel_bridge_core rclcpp::rclcpp)
+target_link_libraries(bridge PRIVATE vehkernel_bridge_core vehkernel_bridge_outputs rclcpp::rclcpp)
+ament_target_dependencies(bridge PUBLIC tf2_ros)
 target_compile_options(bridge PRIVATE -Wall -Wextra -Wshadow -Werror)
 
 install(TARGETS bridge DESTINATION lib/${PROJECT_NAME})
@@ -107,6 +122,15 @@ if(BUILD_TESTING)
   ament_add_gtest(test_session test/test_session.cpp)
   target_link_libraries(test_session vehkernel_bridge_core)
   target_compile_options(test_session PRIVATE -Wall -Wextra -Wshadow -Werror)
+  ament_add_gtest(test_frames test/test_frames.cpp)
+  target_link_libraries(test_frames vehkernel_bridge_core)
+  target_compile_options(test_frames PRIVATE -Wall -Wextra -Wshadow -Werror)
+  ament_add_gtest(test_outputs test/test_outputs.cpp)
+  target_link_libraries(test_outputs vehkernel_bridge_outputs)
+  target_compile_options(test_outputs PRIVATE -Wall -Wextra -Wshadow -Werror)
+  ament_add_gtest(test_imu_noise test/test_imu_noise.cpp)
+  target_link_libraries(test_imu_noise vehkernel_bridge_core)
+  target_compile_options(test_imu_noise PRIVATE -Wall -Wextra -Wshadow -Werror)
 endif()
 
 if(VK_CLANG_TIDY)
