@@ -4,11 +4,15 @@
 
 Clicks, double clicks and long presses SITL's simulated user key over the Link
 and checks, against local_menu, the parameters read over the Link and the
-display image:
+display image (read with display_text.py). SITL has no serial rate parameters,
+so its menu has the six groups without LINKS (the board's seven have it):
 
-1. A double click opens the group list, and arming is refused with "local menu
-   open"; a long press closes it back to the page it was opened from.
-2. SENS_BOARD_ROT edited to YAW_90 and saved reads YAW_90 over the Link,
+0. Clicks move through the eight pages, one status bar dot per page, and wrap.
+1. A double click opens the group list; a click moves to the next group,
+   wrapping around; arming is refused with "local menu open"; a long press
+   closes it back to the page it was opened from.
+2. A double click enters a group and then a parameter's edit screen.
+   SENS_BOARD_ROT edited to YAW_90 and saved reads YAW_90 over the Link,
    local_menu reports the save and a reboot required, and the value is still
    there after SITL restarts with the same parameter file.
 3. ATT_KP: x10 and - stop at the minimum; a long press discards the edit;
@@ -19,8 +23,9 @@ display image:
    needs the vehicle disarmed, and a long press returns to the first page.
 6. A value a Link sets while the menu shows it appears on the display.
 7. Display protection: dimmed and turned off while disarmed (DSP_DIM_S and
-   DSP_OFF_S set short), a click on a dark display only wakes it, and never
-   dimmed while armed.
+   DSP_OFF_S set short), a click on a dark display only wakes it without
+   changing the page, and never dimmed while armed. The parameters the check
+   changed are put back at its end.
 
     check_local_menu.py build/test/app/vehkernel-sitl --msg-dir build/test/generated/schema/python
 """
@@ -39,7 +44,7 @@ sys.path.insert(0, str(REPO / "tools" / "link"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from check_attitude import free_udp_port  # noqa: E402
-from display_text import has_text, is_dark, read_contrast  # noqa: E402
+from display_text import PAGE_COUNT, has_text, is_dark, page_index, read_contrast  # noqa: E402
 from vklink.monitor import LinkMonitor, UdpConnection, load_messages  # noqa: E402
 from vklink.session import ParamReject, ParamType  # noqa: E402
 
@@ -135,15 +140,25 @@ class Menu:
         self.double()
         self.group_cursor = 0
 
-    def enter(self, name: str) -> None:
-        """From the group list, edits `name`; the first action is selected."""
+    def enter(self, name: str, check: Check | None = None) -> None:
+        """From the group list, edits `name`; the first action is selected. With `check`, also checks
+        that the list and the edit screen show the group and the parameter."""
         group = next(group for group, names in GROUPS.items() if name in names)
         target = GROUP_NAMES.index(group)
         self.click((target - self.group_cursor) % len(GROUP_NAMES))
         self.group_cursor = target
         self.double()
+        if check is not None:
+            check.expect(self.shows(group) and self.shows(f"1/{len(GROUPS[group])}"),
+                         f"the display lists the {group} group's {len(GROUPS[group])} parameters")
         self.click(GROUPS[group].index(name))
+        if check is not None:
+            check.expect(self.shows(f"{GROUPS[group].index(name) + 1}/{len(GROUPS[group])}") and self.shows(name),
+                         f"the cursor is on {name}")
         self.double()
+        if check is not None:
+            check.expect(self.shows("NOW") and self.shows("NEW") and self.shows(name),
+                         f"the edit screen of {name} shows NOW and NEW")
 
     def action(self, current: str, wanted: str, actions: list[str]) -> None:
         """Moves from the action `current` to `wanted` and runs it."""
@@ -154,11 +169,33 @@ class Menu:
         return self.monitor.request_arming(arm, REPLY_S)
 
 
+def restore(menu: Menu, check: Check, name: str, kind: ParamType, value) -> None:
+    """Puts a parameter the check changed back, and checks that it reads back."""
+    reply = menu.monitor.set_param(name, kind, value, REPLY_S)
+    check.expect(reply is not None and not isinstance(reply, ParamReject) and menu.param(name) == value,
+                 f"{name} restored")
+
+
 def run(args, check: Check, workdir: Path) -> None:
     param_file, image = workdir / "params.bin", workdir / "display.pbm"
     menu = Menu(args, param_file, image)
     try:
         default_kp = menu.param("ATT_KP")
+        default_ki = menu.param("ATT_KI")
+
+        print("0. a click moves through the eight pages")
+        menu.monitor.run(0.5)
+        check.expect(page_index(image) == 0, "the display starts on the first page")
+        for expected in list(range(1, PAGE_COUNT)) + [0]:
+            # The arming checks page scrolls on a click while it has more lines than fit.
+            for _ in range(PAGE_COUNT):
+                menu.click()
+                if page_index(image) != (expected - 1) % PAGE_COUNT:
+                    break
+            check.expect(page_index(image) == expected,
+                         f"a click reaches page {expected + 1}" if expected else "the pages wrap to the first")
+        menu.long()
+        check.expect(page_index(image) == 0, "a long press returns to the first page")
 
         print("1. a double click opens the groups, and arming is refused")
         menu.click()                     # the attitude page
@@ -167,6 +204,11 @@ def run(args, check: Check, workdir: Path) -> None:
         check.expect(state is not None and state.state == GROUPS_STATE, "local_menu reports the group list open")
         check.expect(menu.shows("SETTINGS"), "the display shows the group list")
         check.expect(menu.shows("ATTITUDE") and menu.shows("COMPASS"), "the display lists the groups")
+        check.expect(menu.shows(f"1/{len(GROUPS)}"), "the cursor is on the first group")
+        menu.click()
+        check.expect(menu.shows(f"2/{len(GROUPS)}"), "a click moves to the next group")
+        menu.click(len(GROUPS) - 1)
+        check.expect(menu.shows(f"1/{len(GROUPS)}"), "the cursor wraps around to the first group")
         reply = menu.monitor.request_mode(MODE_TEST, REPLY_S)
         check.expect(reply is not None and not reply.refused, "TEST accepted while the menu is open")
         reply = menu.arm(True)
@@ -179,7 +221,7 @@ def run(args, check: Check, workdir: Path) -> None:
         menu.open_menu()
 
         print("2. SENS_BOARD_ROT to YAW_90 from the menu")
-        menu.enter("SENS_BOARD_ROT")
+        menu.enter("SENS_BOARD_ROT", check)
         state = menu.state()
         check.expect(state is not None and state.state == EDIT, "local_menu reports the edit")
         check.expect(menu.shows("NEXT") and menu.shows("PREV"), "an enum edit offers NEXT and PREV")
@@ -199,7 +241,7 @@ def run(args, check: Check, workdir: Path) -> None:
         menu.long()                      # the groups
 
         print("3. ATT_KP: x10 and - stop at the minimum, a long press discards, Default and Save")
-        menu.enter("ATT_KP")
+        menu.enter("ATT_KP", check)
         menu.action("+", "x10", NUMBER_ACTIONS)
         menu.action("x10", "-", NUMBER_ACTIONS)
         menu.double()
@@ -245,7 +287,7 @@ def run(args, check: Check, workdir: Path) -> None:
         menu.click()
         check.expect(menu.shows("M/S"), "a click switches to the next page")
         menu.long()
-        check.expect(menu.shows("ESTOP"), "a long press returns to the first page")
+        check.expect(page_index(image) == 0, "a long press returns to the first page")
         menu.arm(False)
     finally:
         menu.close()
@@ -254,6 +296,8 @@ def run(args, check: Check, workdir: Path) -> None:
     menu = Menu(args, param_file, image)
     try:
         check.expect(menu.param("SENS_BOARD_ROT") == 2, "SENS_BOARD_ROT is YAW_90 after the restart")
+        restore(menu, check, "SENS_BOARD_ROT", ParamType.INT32, 0)
+        restore(menu, check, "ATT_KI", ParamType.FLOAT, default_ki)
     finally:
         menu.close()
 
@@ -276,14 +320,16 @@ def run(args, check: Check, workdir: Path) -> None:
         check.expect(is_dark(image), f"turned off after {OFF_S} s")
         menu.click()                     # only wakes the display
         check.expect(not is_dark(image) and read_contrast(image) == FULL_CONTRAST, "a click wakes the display")
-        check.expect(menu.shows("ESTOP"), "the click that woke it did not change the page")
+        check.expect(page_index(image) == 0 and menu.shows("ESTOP"), "the click that woke it did not change the page")
         menu.click()
-        check.expect(menu.shows("ROLL"), "the next click acts")
+        check.expect(page_index(image) == 1 and menu.shows("ROLL"), "the next click acts")
         reply = menu.arm(True)
         check.expect(reply is not None and not reply.refused, "armed")
         menu.monitor.run(OFF_S + 2.0)
         check.expect(read_contrast(image) == FULL_CONTRAST and not is_dark(image), "never dimmed or off while armed")
         menu.arm(False)
+        restore(menu, check, "DSP_DIM_S", ParamType.INT32, 60)
+        restore(menu, check, "DSP_OFF_S", ParamType.INT32, 600)
     finally:
         menu.close()
 

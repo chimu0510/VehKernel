@@ -238,15 +238,16 @@ if(CONFIG_BRINGUP_MOTORS AND CONFIG_LINK_UDP)
       --msg-dir ${VK_MSG_PYTHON_DIR} --param-meta ${VK_PARAM_METADATA})
 endif()
 
-# L3 SITL display test (spec 0007): the status page on the simulated
-# SSD1306, read back from the image SITL writes with --display.
+# L3 SITL display test (spec 0016): the overview and the status bar on the
+# simulated SSD1306, read back from the image SITL writes with --display.
 if(CONFIG_LOCAL_DISPLAY)
   add_test(NAME sitl_display
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sitl/check_display.py $<TARGET_FILE:vehkernel-sitl>)
 endif()
 
-# L3 SITL local menu test (spec 0007): the simulated user key opens the menu,
-# edits and saves parameters, refuses arming while open and times out.
+# L3 SITL local menu test (spec 0016): the simulated user key steps through the
+# pages, opens the menu, edits and saves parameters, refuses arming while open
+# and times out; the display dims, turns off and wakes.
 if(CONFIG_LOCAL_MENU AND CONFIG_LINK_UDP)
   add_test(NAME sitl_local_menu
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sitl/check_local_menu.py $<TARGET_FILE:vehkernel-sitl>

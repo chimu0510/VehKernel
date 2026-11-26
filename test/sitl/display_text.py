@@ -64,22 +64,24 @@ def is_dark(path: Path) -> bool:
     return not any(any(row) for row in read_pbm(path))
 
 
-def has_text(path: Path, text: str, glyphs: dict[tuple[str, ...], str] | None = None) -> bool:
+def has_text(path: Path, text: str, glyphs: dict[tuple[str, ...], str] | None = None, scale: int = 1) -> bool:
     """Whether `text` is drawn anywhere on the image, in the 5 x 7 font on a dark ground or dark on a
     lit one, at any pixel position. The menu screens of spec 0016 draw text at pixel positions, not
-    in the cells of screen_text()."""
+    in the cells of screen_text(). With `scale` 2 each pixel of a glyph is two wide, as the overview's
+    mode and arming state are drawn (the cell is then 12 pixels wide)."""
     table = glyphs if glyphs is not None else load_glyphs()
     rows_of = {char: rows for rows, char in table.items()}
     image = read_pbm(path)
     height, width = len(image), len(image[0])
-    # Each character's glyph in a 6-pixel cell: the pixels that are lit and those that are dark in it.
+    # Each character's glyph in its cell: the pixels that are lit and those that are dark in it.
     lit: list[tuple[int, int]] = []
     dark: list[tuple[int, int]] = []
     for index, char in enumerate(text):
         for y, row in enumerate(rows_of[char]):
             for x, pixel in enumerate(row):
-                (lit if pixel == "#" else dark).append((index * CELL_W + x, y))
-    span = len(text) * CELL_W - (CELL_W - GLYPH_W)
+                for sub in range(scale):
+                    (lit if pixel == "#" else dark).append((index * CELL_W * scale + x * scale + sub, y))
+    span = (len(text) * CELL_W - (CELL_W - GLYPH_W)) * scale
     for inverted in (False, True):
         on, off = (dark, lit) if inverted else (lit, dark)
         for y0 in range(height - GLYPH_H + 1):
@@ -87,3 +89,31 @@ def has_text(path: Path, text: str, glyphs: dict[tuple[str, ...], str] | None = 
                 if all(image[y0 + y][x0 + x] for x, y in on) and not any(image[y0 + y][x0 + x] for x, y in off):
                     return True
     return False
+
+
+# The status bar's page dots (modules/local_display/src/status_bar.cpp): eight, four pixels apart,
+# the current page a filled 3 x 3 square and the others one pixel.
+PAGE_COUNT = 8
+DOTS_FIRST_X = 96
+
+
+def page_index(path: Path) -> int | None:
+    """The page whose dot is filled in the status bar, or None when no dot matches. The image may be
+    shifted by a pixel (display protection), so each offset is tried."""
+    image = read_pbm(path)
+    for dy in (0, 1):
+        for dx in (0, 1):
+            found = []
+            for page in range(PAGE_COUNT):
+                x = DOTS_FIRST_X + 4 * page + dx
+                filled = all(image[2 + dy + j][x - 1 + i] for i in range(3) for j in range(3))
+                single = image[3 + dy][x] and not any(image[2 + dy][x + i] for i in (-1, 1)) \
+                    and not image[2 + dy][x] and not image[4 + dy][x]
+                if filled:
+                    found.append(page)
+                elif not single:
+                    found = []
+                    break
+            if len(found) == 1:
+                return found[0]
+    return None

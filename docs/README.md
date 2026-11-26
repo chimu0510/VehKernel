@@ -21,7 +21,7 @@
 | [ROS2 Bridge](guide/ros2-bridge.md) | Installing ROS2 Jazzy, building and running the Bridge, topics, services, parameters, frames, silence |
 | [Estimation](guide/estimation.md) | Attitude estimators, heading fusion, magnetometer calibration, board orientation check |
 | [Driving the wheels](guide/driving.md) | Safety conditions, arming, motor bring-up, driving, odometry, remote control |
-| [Local display](guide/local-display.md) | Pages, user key, local menu |
+| [Local display](guide/local-display.md) | Status bar, pages, user key, local menu, display protection |
 | [Logging](guide/logging.md) | Recording, profiles, dropouts, opening logs, replay |
 | [Testing](guide/testing.md) | Test layers, `ctest`, estimator replay, fuzzing, bring-up image, hardware checks |
 | [Examples](guide/examples.md) | Building, flashing, SITL and lessons for the board examples |
