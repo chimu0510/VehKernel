@@ -17,6 +17,7 @@ SPDX-FileCopyrightText = "Vehkernel contributors"
 path = [
     "**/*.md",
     "**/*.json",
+    "**/*.rviz",
     "**/.gitkeep",
     ".clang-tidy",
     ".dockerignore",

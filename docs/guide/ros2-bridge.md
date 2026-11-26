@@ -78,6 +78,27 @@ ros2 run vehkernel_bridge bridge --ros-args -p transport:=serial -p serial_devic
 
 The Bridge reconnects on its own, with a growing wait between attempts, when the board reboots or the cable is replugged; the log says why the Link went down.
 
+## Viewing in RViz
+
+RViz runs on a desktop machine on the same network, such as the development host, rather than on the companion computer; install it there with `sudo apt install ros-jazzy-rviz2`, unless ROS2's desktop packages are already installed. The two computers see each other's topics only with the same ROS domain: `ROS_DOMAIN_ID` unset or equal on both. A shell startup file can set it, such as `~/.bashrc` on the companion computer, which a Bridge started from an interactive terminal reads and one started over a non-interactive ssh does not. On the desktop machine, check that the Bridge's topics arrive:
+
+```bash
+echo ${ROS_DOMAIN_ID:-0}
+ros2 topic list
+```
+
+The topics should include `/odom`, `/imu/data` and `/vehkernel/vehicle_status`. Synchronize the two computers' clocks first ([Clock synchronization](companion-computer.md#clock-synchronization)): RViz drops TF and messages stamped too far from its own clock.
+
+The package installs an RViz config, which shows the TF with `base_link`'s axes, `/odom` as a trail of axes, and a grid, with the view following `base_link`:
+
+```bash
+rviz2 -d $(ros2 pkg prefix vehkernel_bridge)/share/vehkernel_bridge/rviz/bridge.rviz
+```
+
+On a desktop machine where the Bridge is not built, open the same file from a checkout: `rviz2 -d bridge/vehkernel_bridge/rviz/bridge.rviz`. Scrolling zooms and dragging orbits around `base_link`. A config of your own needs RViz's default tools (`Interact` and `MoveCamera`) for the mouse to move the view, and a view whose target frame is `base_link` to keep the vehicle in sight: wheel odometry counts wheels turned while lifted as travel, so after a test on the bench the vehicle starts far from `odom`'s origin.
+
+In the config, turning the board turns `base_link`'s axes: red is forward, green left and blue up. Yaw left is positive about up, nose up is negative pitch about left, and left side up is positive roll about forward. RViz on Jazzy has no display for `sensor_msgs/Imu` of its own. To see `/imu/data` itself, install the plugin with `sudo apt install ros-jazzy-rviz-imu-plugin`, add its `Imu` display, and set the topic's reliability to best effort. Its orientation is the one `/odom` carries.
+
 ## Launch file
 
 `launch/bridge.launch.py` starts the Bridge with its Link given as launch arguments:

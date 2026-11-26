@@ -118,6 +118,8 @@ target_compile_options(bridge PRIVATE -Wall -Wextra -Wshadow -Werror)
 
 install(TARGETS bridge DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+# An RViz config for a desktop machine on the same ROS2 network; the Bridge does not need RViz.
+install(DIRECTORY rviz DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
