@@ -8,6 +8,7 @@
 
 #include <vk/msg/enums.hpp>
 #include <vk/msg/vehicle_attitude.hpp>
+#include <vk/msg/firmware_info.hpp>
 #include <vk/msg/vehicle_status.hpp>
 
 #include <chrono>
@@ -86,6 +87,9 @@ BridgeNode::BridgeNode(const rclcpp::NodeOptions& options) : rclcpp::Node("bridg
     odometry_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", rclcpp::QoS(10));
     imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("imu/data", rclcpp::SensorDataQoS());
     status_pub_ = create_publisher<vehkernel_msgs::msg::VehicleStatus>("vehkernel/vehicle_status", rclcpp::QoS(10));
+    // Transient local, so that a node started after the connection still gets it.
+    firmware_pub_ = create_publisher<vehkernel_msgs::msg::FirmwareInfo>("vehkernel/firmware_info",
+                                                                        rclcpp::QoS(1).transient_local());
     if (publish_tf_) {
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     }
@@ -101,6 +105,8 @@ BridgeNode::BridgeNode(const rclcpp::NodeOptions& options) : rclcpp::Node("bridg
     });
     session_->subscribe<vk::msg::VehicleStatus>(
         [this](std::uint8_t /*instance*/, const vk::msg::VehicleStatus& status) { on_status(status); });
+    session_->subscribe<vk::msg::FirmwareInfo>(
+        [this](std::uint8_t /*instance*/, const vk::msg::FirmwareInfo& info) { on_firmware_info(info); });
 
     // /cmd_vel is sent on as it arrives. Nav2 on Jazzy publishes TwistStamped; teleop_twist_keyboard
     // and older nodes publish Twist.
@@ -156,6 +162,8 @@ void BridgeNode::on_connected(const ConnectionInfo& info)
     sp_timeout_reader_->restart(clock_.now_us());
     sp_timeout_checked_ = false;
     logged_source_.reset();
+    logged_firmware_.reset();
+    published_firmware_.reset();
     RCLCPP_INFO(get_logger(), "handshake done: protocol version %u, %u topics, %u parameters", info.protocol_version,
                 info.topic_count, info.param_count);
     if (info.disabled_topics.empty()) {
@@ -331,6 +339,25 @@ void BridgeNode::on_status(const vk::msg::VehicleStatus& status)
     const auto stamp = stamp_ns(sample_time_us(status));
     if (stamp.has_value()) {
         status_pub_->publish(make_vehicle_status(status, *stamp));
+    }
+}
+
+void BridgeNode::on_firmware_info(const vk::msg::FirmwareInfo& info)
+{
+    if (!logged_firmware_.has_value() || !same_firmware(*logged_firmware_, info)) {
+        RCLCPP_INFO(get_logger(), "firmware %u.%u.%u, git %08x%s, board %u", static_cast<unsigned>(info.version_major),
+                    static_cast<unsigned>(info.version_minor), static_cast<unsigned>(info.version_patch),
+                    static_cast<unsigned>(info.git_hash), info.git_dirty ? " with changes not committed" : "",
+                    static_cast<unsigned>(info.board_id));
+        logged_firmware_ = info;
+    }
+    if (published_firmware_.has_value() && same_firmware(*published_firmware_, info)) {
+        return;
+    }
+    const auto stamp = stamp_ns(sample_time_us(info));
+    if (stamp.has_value()) {
+        firmware_pub_->publish(make_firmware_info(info, *stamp));
+        published_firmware_ = info;
     }
 }
 

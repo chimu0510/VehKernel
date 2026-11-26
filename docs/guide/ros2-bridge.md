@@ -147,6 +147,7 @@ Every output is stamped with the MCU's sample time on the companion computer's c
 | `/tf` | `tf2_msgs/TFMessage` | out | `odom` → `base_link` from the same data, unless `publish_tf` is false |
 | `/imu/data` | `sensor_msgs/Imu` | out | The IMU's angular velocity and acceleration in `base_link`, the orientation of the latest attitude estimate, covariances from `EKF_GYR_NOISE` and `EKF_ACC_NOISE`; sensor data QoS (best effort) |
 | `/vehkernel/vehicle_status` | `vehkernel_msgs/VehicleStatus` | out | Mode, armed, source in control, emergency stop, actuator power, arming refusal, disarm reason, reset cause |
+| `/vehkernel/firmware_info` | `vehkernel_msgs/FirmwareInfo` | out | The firmware's version, commit, dirty flag and board ID (ADR-0023), published at each connection and when it changes, transient local; the Bridge also logs it |
 | `/cmd_vel` | `geometry_msgs/TwistStamped`, or `Twist` | in | `linear.x` forward, `linear.y` left and `angular.z` counterclockwise, in `base_link` |
 
 | Service | Type | Effect |

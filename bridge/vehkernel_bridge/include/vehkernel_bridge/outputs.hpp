@@ -5,12 +5,14 @@
 // covers them. The node only stamps, picks the QoS and publishes.
 #pragma once
 
+#include <vehkernel_msgs/msg/firmware_info.hpp>
 #include <vehkernel_msgs/msg/vehicle_status.hpp>
 
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 
+#include <vk/msg/firmware_info.hpp>
 #include <vk/msg/imu_sample.hpp>
 #include <vk/msg/vehicle_attitude.hpp>
 #include <vk/msg/vehicle_local_odometry.hpp>
@@ -50,6 +52,7 @@ inline constexpr double unknown_variance = 1.0e6;
 [[nodiscard]] constexpr std::uint64_t sample_time_us(const vk::msg::VehicleAttitude& m) { return m.timestamp_sample; }
 [[nodiscard]] constexpr std::uint64_t sample_time_us(const vk::msg::ImuSample& m) { return m.timestamp; }
 [[nodiscard]] constexpr std::uint64_t sample_time_us(const vk::msg::VehicleStatus& m) { return m.timestamp; }
+[[nodiscard]] constexpr std::uint64_t sample_time_us(const vk::msg::FirmwareInfo& m) { return m.timestamp; }
 
 struct FrameNames {
     std::string odom = "odom";
@@ -77,5 +80,10 @@ struct ImuNoise {
 
 [[nodiscard]] vehkernel_msgs::msg::VehicleStatus make_vehicle_status(const vk::msg::VehicleStatus& status,
                                                                     std::int64_t stamp_ns);
+
+// The firmware's identity (ADR-0023); `same_firmware` compares two without their stamps.
+[[nodiscard]] vehkernel_msgs::msg::FirmwareInfo make_firmware_info(const vk::msg::FirmwareInfo& info,
+                                                                  std::int64_t stamp_ns);
+[[nodiscard]] bool same_firmware(const vk::msg::FirmwareInfo& a, const vk::msg::FirmwareInfo& b);
 
 }  // namespace vk::bridge

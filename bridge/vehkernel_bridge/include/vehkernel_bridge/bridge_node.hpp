@@ -14,6 +14,7 @@
 #include <vehkernel_bridge/steady_clock.hpp>
 #include <vehkernel_bridge/transport.hpp>
 
+#include <vehkernel_msgs/msg/firmware_info.hpp>
 #include <vehkernel_msgs/msg/vehicle_status.hpp>
 #include <vehkernel_msgs/srv/set_mode.hpp>
 
@@ -26,6 +27,7 @@
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <vk/msg/body_velocity_setpoint.hpp>
+#include <vk/msg/firmware_info.hpp>
 #include <vk/msg/imu_sample.hpp>
 #include <vk/msg/vehicle_attitude.hpp>
 #include <vk/msg/vehicle_local_odometry.hpp>
@@ -54,6 +56,7 @@ private:
     void on_odometry(const vk::msg::VehicleLocalOdometry& odometry);
     void on_imu(const vk::msg::ImuSample& sample);
     void on_status(const vk::msg::VehicleStatus& status);
+    void on_firmware_info(const vk::msg::FirmwareInfo& info);
 
     // The inputs. A /cmd_vel is sent on as it arrives; the zero setpoints of the idle
     // rule come from the poll timer.
@@ -79,6 +82,10 @@ private:
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry_pub_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
     rclcpp::Publisher<vehkernel_msgs::msg::VehicleStatus>::SharedPtr status_pub_;
+    rclcpp::Publisher<vehkernel_msgs::msg::FirmwareInfo>::SharedPtr firmware_pub_;
+    // The identity last logged and published in this connection, so each is done once per change.
+    std::optional<vk::msg::FirmwareInfo> logged_firmware_;
+    std::optional<vk::msg::FirmwareInfo> published_firmware_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     // The orientation and variances an IMU message carries; the latest attitude of the connection.
     std::optional<vk::msg::VehicleAttitude> attitude_;

@@ -120,6 +120,31 @@ TEST(Outputs, ANearlySingularPositionCovarianceStaysPositiveSemidefinite)
     EXPECT_NEAR(negative.pose.covariance[1], -0.06, 1e-9);
 }
 
+TEST(Outputs, FirmwareInfoCarriesTheIdentityAndComparesWithoutItsStamp)
+{
+    vk::msg::FirmwareInfo info{};
+    info.timestamp = 7;
+    info.version_major = 0;
+    info.version_minor = 2;
+    info.version_patch = 1;
+    info.git_hash = 0xf80f754fU;
+    info.git_dirty = true;
+    info.board_id = 22083;
+    const auto out = make_firmware_info(info, 2'500'000'000);
+    EXPECT_EQ(out.header.stamp.sec, 2);
+    EXPECT_EQ(out.version_minor, 2U);
+    EXPECT_EQ(out.version_patch, 1U);
+    EXPECT_EQ(out.git_hash, 0xf80f754fU);
+    EXPECT_TRUE(out.git_dirty);
+    EXPECT_EQ(out.board_id, 22083U);
+
+    auto later = info;
+    later.timestamp = 1'000'007;
+    EXPECT_TRUE(same_firmware(info, later));
+    later.git_hash = 0x64aa2a60U;
+    EXPECT_FALSE(same_firmware(info, later));
+}
+
 TEST(Outputs, FrameNamesAreParameters)
 {
     const auto odom = make_odometry(make_sample(), 0, FrameNames{"map", "chassis"});

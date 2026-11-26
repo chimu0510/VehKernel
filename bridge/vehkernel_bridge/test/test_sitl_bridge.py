@@ -3,7 +3,7 @@
 #
 # SITL with the built-in ground vehicle and the Bridge on UDP:
 #
-# - /odom, /tf, /imu/data and /vehkernel/vehicle_status arrive.
+# - /odom, /tf, /imu/data and /vehkernel/vehicle_status arrive, and /vehkernel/firmware_info.
 # - set_mode COMPANION and arm succeed.
 # - /cmd_vel forward moves /odom forward, along the heading.
 # - Silence on /cmd_vel for longer than COM_DISARM_IDLE (10 s) keeps the vehicle armed and stopped.
@@ -29,11 +29,11 @@ from ament_index_python.packages import get_package_prefix, get_package_share_di
 from geometry_msgs.msg import TwistStamped
 from nav_msgs.msg import Odometry
 from rclpy.executors import SingleThreadedExecutor
-from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu
 from std_srvs.srv import SetBool
 from tf2_msgs.msg import TFMessage
-from vehkernel_msgs.msg import VehicleStatus
+from vehkernel_msgs.msg import FirmwareInfo, VehicleStatus
 from vehkernel_msgs.srv import SetMode
 
 SITL = os.environ.get("VK_SITL_EXECUTABLE", "")
@@ -89,6 +89,7 @@ class TestSitlBridge(unittest.TestCase):
         cls.imu: list[Imu] = []
         cls.status: list[VehicleStatus] = []
         cls.transforms: list = []
+        cls.firmware: list[FirmwareInfo] = []
         cls.processes: list[subprocess.Popen] = []
         # The subscriptions exist before the Bridge starts, so no message is missed.
         reliable = QoSProfile(depth=100, reliability=ReliabilityPolicy.RELIABLE)
@@ -96,6 +97,9 @@ class TestSitlBridge(unittest.TestCase):
         cls.node.create_subscription(Imu, "imu/data", cls.imu.append, qos_profile_sensor_data)
         cls.node.create_subscription(VehicleStatus, "vehkernel/vehicle_status", cls.status.append, reliable)
         cls.node.create_subscription(TFMessage, "tf", lambda m: cls.transforms.extend(m.transforms), reliable)
+        latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                             durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        cls.node.create_subscription(FirmwareInfo, "vehkernel/firmware_info", cls.firmware.append, latched)
         cls.cmd_vel = cls.node.create_publisher(TwistStamped, "cmd_vel", 10)
         cls.set_mode = cls.node.create_client(SetMode, "vehkernel/set_mode")
         cls.arm = cls.node.create_client(SetBool, "vehkernel/arm")
@@ -156,6 +160,10 @@ class TestSitlBridge(unittest.TestCase):
         self.assertEqual(self.imu[-1].header.frame_id, "base_link")
         self.assertEqual(self.status[-1].mode, VehicleStatus.MODE_STANDBY)
         self.assertFalse(self.status[-1].armed)
+        # The firmware's identity arrives once a second; SITL reports board 0 (ADR-0023).
+        self.assertTrue(self.spin_until(lambda: self.firmware, 3.0), "no /vehkernel/firmware_info")
+        self.assertEqual(self.firmware[-1].board_id, 0)
+        self.assertGreaterEqual(self.firmware[-1].version_minor, 2)
 
     def test_02_companion_and_arm(self):
         mode = self.call(self.set_mode, SetMode.Request(mode_name="COMPANION"))

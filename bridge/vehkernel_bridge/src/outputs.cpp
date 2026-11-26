@@ -191,4 +191,24 @@ vehkernel_msgs::msg::VehicleStatus make_vehicle_status(const vk::msg::VehicleSta
     return out;
 }
 
+vehkernel_msgs::msg::FirmwareInfo make_firmware_info(const vk::msg::FirmwareInfo& info, std::int64_t stamp_ns)
+{
+    vehkernel_msgs::msg::FirmwareInfo out;
+    out.header.stamp = to_time(stamp_ns);
+    out.version_major = info.version_major;
+    out.version_minor = info.version_minor;
+    out.version_patch = info.version_patch;
+    out.git_hash = info.git_hash;
+    out.git_dirty = info.git_dirty;
+    out.board_id = info.board_id;
+    return out;
+}
+
+bool same_firmware(const vk::msg::FirmwareInfo& a, const vk::msg::FirmwareInfo& b)
+{
+    return a.version_major == b.version_major && a.version_minor == b.version_minor &&
+           a.version_patch == b.version_patch && a.git_hash == b.git_hash && a.git_dirty == b.git_dirty &&
+           a.board_id == b.board_id;
+}
+
 }  // namespace vk::bridge
