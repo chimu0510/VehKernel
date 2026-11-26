@@ -98,6 +98,8 @@ if(CONFIG_LOCAL_DISPLAY)
   # FreeRTOS and is tested on the development host; the work item wraps it.
   vk_add_library(vk_local_display LAYER module STATIC
     local_display/src/font.cpp
+    local_display/src/graphics.cpp
+    local_display/src/icons.cpp
     local_display/src/local_display.cpp
     local_display/src/local_menu.cpp
     local_display/src/pages.cpp)
