@@ -417,3 +417,24 @@ def test_summary_and_live_view_show_the_firmware_identity():
     monitor.topics[("firmware_info", 0)].add(info)
     assert "firmware version=0.2.1 git=0f80f754 dirty=1 board_id=22083" in monitor.summary()
     assert "firmware       version=0.2.1 git=0f80f754 dirty=1 board_id=22083" in render(monitor, "udp", width=200)
+
+
+def test_summary_and_live_view_name_the_failing_and_skipped_arming_checks():
+    connection = types.SimpleNamespace(send=lambda data: None, receive=lambda timeout: b"", close=lambda: None)
+    monitor = LinkMonitor(connection, messages())
+    # Bit n stands for the arming_result value n: 1 BOARD_NOT_VERIFIED, 3 WRONG_MODE, 7 ACTUATOR_POWER_OFF,
+    # 12 RC_NOT_CONNECTED, 13 STICKS_NOT_CENTRED.
+    checks = types.SimpleNamespace(timestamp=1, failing=(1 << 1) | (1 << 3), skipped=(1 << 7) | (1 << 12) | (1 << 13))
+    monitor.topics[("arming_checks", 0)] = TopicStats("arming_checks", 0)
+    monitor.topics[("arming_checks", 0)].add(checks)
+    expected = "failing=board_not_verified,wrong_mode skipped=actuator_power_off,rc_not_connected,sticks_not_centred"
+    assert f"arming_checks {expected}" in monitor.summary()
+    assert f"arming checks  {expected}" in render(monitor, "udp", width=200)
+
+
+def test_arming_checks_with_nothing_set_read_none():
+    connection = types.SimpleNamespace(send=lambda data: None, receive=lambda timeout: b"", close=lambda: None)
+    monitor = LinkMonitor(connection, messages())
+    monitor.topics[("arming_checks", 0)] = TopicStats("arming_checks", 0)
+    monitor.topics[("arming_checks", 0)].add(types.SimpleNamespace(timestamp=1, failing=0, skipped=0))
+    assert "arming_checks failing=none skipped=none" in monitor.summary()

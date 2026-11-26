@@ -37,11 +37,14 @@ topic name=vehicle_attitude instance=0 messages=250 rate_hz=49.95
 topic name=work_item_status instance=0 messages=5 rate_hz=1.00
 firmware version=0.2.0 git=f80f754f dirty=0 board_id=0
 mcu_link instance=0 frames_sent=1666 bytes_sent=87998 frames_received=9 bytes_received=138 drops=0 crc_errors=0 malformed=0 lost=0 handshake_state=connected rate_scale=100
+arming_checks failing=wrong_mode skipped=rc_not_connected,sticks_not_centred
 vehicle_status mode=STANDBY armed=0 source=none board_verified=1 emergency_stop=0 actuator_power=powered skipped_checks=none arming_refusal=none disarm_reason=none output_watchdog_trips=0 reset_cause=power_on fault=none fault_address=0x00000000
 work_item name=icm20948 runs=1000 overruns=0 run_time_last_us=14 run_time_max_us=40 run_time_mean_us=16 jitter_max_us=2885
 work_item name=link0 runs=1000 overruns=0 run_time_last_us=65 run_time_max_us=407 run_time_mean_us=60 jitter_max_us=2876
 work_item_overruns judged=1 stalls=0 real=0
 ```
+
+The `arming_checks` line comes from the commander's `arming_checks` topic at 5 Hz (spec 0016): `failing` names every arming check that would refuse an arm request now, and `skipped` those configured off in `COM_ARM_CHECK` or not applicable in the mode, for example the remote control's checks outside `MANUAL`. The live view shows it as `arming checks`. Both read `none` when empty.
 
 `rate_hz` here follows the MCU's timestamps, so host scheduling does not skew it. The `link` line is the development host's side of the Link, with the protocol version negotiated at the handshake, the parameter count and parameter set hash the MCU reported at the handshake; `mcu_link` is the MCU's side, with the rate scale it sends topics at: frames the transport could not take count as `drops`, frames missing from the peer's sequence as `lost`. The check also fails when the MCU dropped frames. The `work_item` lines count overruns since boot. The `work_item_overruns` line judges those during the check, one 1 s timing report to the next. An interval in which most work items at the base rate overran at once is a host `stall`: SITL runs the whole MCU in one process, and a host that pauses it delays every periodic work item together. Its overruns are set aside. With `--sitl`, as the SITL tests run it, an overrun of a work item whose longest run stays within its period also counts as a stall: on a shared host a stall can push one work item past its next start alone; on a board such a late start means another work queue took the CPU, and counts. The others are `real`, and `overran` names the work items they came from. `judged=0` means there were too few reports to judge. This line does not fail the check; the SITL tests judge it: `sitl_link` allows one stall and no real overruns.
 

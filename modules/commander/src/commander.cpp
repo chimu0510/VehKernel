@@ -161,49 +161,70 @@ bool Commander::accepts_setpoint(core::ControlSource source, core::SetpointLevel
            core::setpoint_accepted(state_.mode, state_.source, source, level);
 }
 
-core::ArmingResult Commander::arming_check(std::uint64_t now_us, core::ControlSource source) const
+ArmingChecks Commander::evaluate_arming(std::uint64_t now_us, core::ControlSource source) const
 {
+    ArmingChecks checks{};
+    const auto fail = [&checks](core::ArmingResult check) { checks.failing |= bit(check); };
+    const auto skip = [&checks](core::ArmingResult check) { checks.skipped |= bit(check); };
+    const core::ModeRules rules = core::mode_rules(state_.mode);
     if (!state_.board_verified) {
-        return core::ArmingResult::BoardNotVerified;
+        fail(core::ArmingResult::BoardNotVerified);
     }
     if (state_.emergency_stop) {
-        return core::ArmingResult::EmergencyStop;
+        fail(core::ArmingResult::EmergencyStop);
     }
-    const core::ModeRules rules = core::mode_rules(state_.mode);
     if (!rules.armable) {
-        return core::ArmingResult::WrongMode;
+        fail(core::ArmingResult::WrongMode);
     }
     if (source != state_.source) {
-        return core::ArmingResult::NotInControl;
+        fail(core::ArmingResult::NotInControl);
     }
-    if (rules.needs_remote_control && !inputs_.remote_control_connected) {
-        return core::ArmingResult::RcNotConnected;
-    }
-    if (rules.needs_remote_control && !inputs_.sticks_centred) {
-        return core::ArmingResult::SticksNotCentred;
+    // The remote control's checks apply in the modes that need it only.
+    if (!rules.needs_remote_control) {
+        skip(core::ArmingResult::RcNotConnected);
+        skip(core::ArmingResult::SticksNotCentred);
+    } else {
+        if (!inputs_.remote_control_connected) {
+            fail(core::ArmingResult::RcNotConnected);
+        }
+        if (!inputs_.sticks_centred) {
+            fail(core::ArmingResult::SticksNotCentred);
+        }
     }
     const bool current = inputs_.last_setpoint_us != 0 &&
                          now_us - inputs_.last_setpoint_us <= to_us(settings_.setpoint_timeout_s);
     if (current && !inputs_.setpoints_idle) {
-        return core::ArmingResult::SetpointsActive;
+        fail(core::ArmingResult::SetpointsActive);
     }
     if (inputs_.bringup_running) {
-        return core::ArmingResult::BringupRunning;
+        fail(core::ArmingResult::BringupRunning);
     }
-    if (power_checked() && (state_.actuator_power == ActuatorPower::Unpowered ||
-                            state_.actuator_power == ActuatorPower::Settling)) {
-        return core::ArmingResult::ActuatorPowerOff;
+    if (!power_checked()) {
+        skip(core::ArmingResult::ActuatorPowerOff);
+    } else if (state_.actuator_power == ActuatorPower::Unpowered || state_.actuator_power == ActuatorPower::Settling) {
+        fail(core::ArmingResult::ActuatorPowerOff);
     }
     if (!inputs_.actuators_started) {
-        return core::ArmingResult::ActuatorsNotStarted;
+        fail(core::ArmingResult::ActuatorsNotStarted);
     }
     if (inputs_.local_menu_open) {
-        return core::ArmingResult::LocalMenuOpen;
+        fail(core::ArmingResult::LocalMenuOpen);
     }
     if (core::unexpected(state_.reset_report)) {
-        return core::ArmingResult::UnexpectedReset;
+        fail(core::ArmingResult::UnexpectedReset);
     }
-    return core::ArmingResult::Ok;
+    return checks;
+}
+
+core::ArmingResult Commander::arming_check(std::uint64_t now_us, core::ControlSource source) const
+{
+    return evaluate_arming(now_us, source).first_failing();
+}
+
+ArmingChecks Commander::arming_checks(std::uint64_t now_us) const
+{
+    // Nobody asks, so the source in control is the one that would ask.
+    return evaluate_arming(now_us, state_.source);
 }
 
 bool Commander::power_checked() const

@@ -6,6 +6,7 @@
 #include <vk/msg/actuator_outputs.hpp>
 #include <vk/msg/actuator_setpoint.hpp>
 #include <vk/msg/allocation_status.hpp>
+#include <vk/msg/arming_checks.hpp>
 #include <vk/msg/body_velocity_measurement.hpp>
 #include <vk/msg/body_velocity_setpoint.hpp>
 #include <vk/msg/estimator_attitude.hpp>
@@ -81,10 +82,11 @@ struct DefaultStreams {
     TopicStreamOf<msg::BodyVelocitySetpoint> body_setpoint{Inbound{.setpoint = true}, 0};
     TopicStreamOf<msg::LocalMenu> menu{MaxRate{5.0F}, 0};  // with the local menu
     TopicStreamOf<msg::FirmwareInfo> firmware{status_rate, 0};
+    TopicStreamOf<msg::ArmingChecks> arming_checks{MaxRate{5.0F}, 0};  // spec 0016
     std::array<TopicStreamOf<msg::WorkItemStatus>, msg::WorkItemStatus::instances> work_items =
         make_status_streams<msg::WorkItemStatus>();
     std::array<TopicStreamOf<msg::LinkStatus>, msg::LinkStatus::instances> links = make_status_streams<msg::LinkStatus>();
-    std::array<TopicStream*, 20> first{&imu,
+    std::array<TopicStream*, 21> first{&imu,
                                        &mag,
                                        &mag_status,
                                        &attitude,
@@ -103,9 +105,10 @@ struct DefaultStreams {
                                        &setpoint,
                                        &body_setpoint,
                                        &menu,
-                                       &firmware};
-    std::array<TopicStream*, 20 + msg::WorkItemStatus::instances + msg::LinkStatus::instances> map =
-        make_map(first, std::make_index_sequence<20>{}, work_items,
+                                       &firmware,
+                                       &arming_checks};
+    std::array<TopicStream*, 21 + msg::WorkItemStatus::instances + msg::LinkStatus::instances> map =
+        make_map(first, std::make_index_sequence<21>{}, work_items,
                  std::make_index_sequence<msg::WorkItemStatus::instances>{}, links,
                  std::make_index_sequence<msg::LinkStatus::instances>{});
 };

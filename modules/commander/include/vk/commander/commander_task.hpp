@@ -23,7 +23,9 @@
 //
 // A reboot accepted while disarmed (ADR-0023) happens reboot_delay_us
 // later, from a cycle, so the source's reply leaves first; arming is refused
-// meanwhile. vehicle_status also carries the reset cause the platform read
+// meanwhile. arming_checks carries every check an arm request would run, the
+// failing and the skipped bits, five times a second and on every change
+// (spec 0016). vehicle_status also carries the reset cause the platform read
 // at boot.
 #pragma once
 
@@ -34,6 +36,7 @@
 #include <vk/core/work_queue.hpp>
 #include <vk/hal/reset.hpp>
 #include <vk/msg/actuator_setpoint.hpp>
+#include <vk/msg/arming_checks.hpp>
 #include <vk/msg/arming_state.hpp>
 #include <vk/msg/body_velocity_setpoint.hpp>
 #include <vk/msg/bringup_command.hpp>
@@ -89,6 +92,7 @@ private:
     [[nodiscard]] core::RestartEstimatorsResult request_restart_estimators(std::uint64_t now_us);
     void follow_setpoints();
     void publish(std::uint64_t now_us, const State& state);
+    void publish_checks(std::uint64_t now_us);
 
     Config config_;
     Commander commander_;
@@ -110,6 +114,10 @@ private:
     core::Publication<msg::EstimatorRestart> estimator_restart_publication_;
     core::Publication<msg::ArmingState> arming_publication_;
     core::Publication<msg::VehicleStatus> status_publication_;
+    core::Publication<msg::ArmingChecks> checks_publication_;
+    ArmingChecks last_checks_{};
+    bool checks_published_ = false;
+    std::uint64_t next_checks_us_ = 0;
     core::Subscription<msg::VehicleAttitude> vehicle_attitude_{0};
     core::Subscription<msg::EstimatorAttitude> estimator_attitude_{1};
     bool mag_missing_ = false;

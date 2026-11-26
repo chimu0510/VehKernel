@@ -82,7 +82,8 @@ def main() -> int:
         target = ["--serial", pty_path]
     monitor_args = [sys.executable, args.monitor, *target, "--msg-dir", args.msg_dir,
                     "--handshake-timeout", str(MARGIN_S), "--check", "--sitl", "--duration", str(args.duration)]
-    for expectation in args.expect_rate:
+    # The commander's arming checks ride at 5 Hz (spec 0016).
+    for expectation in [*args.expect_rate, "arming_checks:0=5"]:
         monitor_args += ["--expect-rate", expectation]
     monitor = subprocess.run(monitor_args, capture_output=True, text=True, timeout=args.duration + 30, check=False)
     report, errors = sitl.communicate(timeout=args.duration + 30)
@@ -126,6 +127,9 @@ def main() -> int:
     if firmware is None or re.search(r"version=\d+\.\d+\.\d+ git=[0-9a-f]{8} dirty=[01] board_id=0\b",
                                       firmware) is None:
         failures.append(f"the Link monitor showed no firmware identity for SITL: {firmware!r}")
+    arming_checks = next((line for line in monitor.stdout.splitlines() if line.startswith("arming_checks ")), None)
+    if arming_checks is None or "failing=" not in arming_checks:
+        failures.append(f"the Link monitor showed no arming checks: {arming_checks!r}")
     # A transport without a baud rate, UDP or a pty, is never scaled (ADR-0002).
     scales = [line.split("rate_scale=")[1].split()[0] for line in monitor.stdout.splitlines()
               if line.startswith("mcu_link ") and "rate_scale=" in line]

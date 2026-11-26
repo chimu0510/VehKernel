@@ -39,6 +39,7 @@
 #include <vk/core/vehicle_control.hpp>
 #include <vk/msg/enums.hpp>
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -87,6 +88,41 @@ struct State {
     friend bool operator==(const State&, const State&) = default;
 };
 
+// Every arming check at once. Bit n stands for the ArmingResult with value n
+// (bit 0, OK, is never set; bit 10, REBOOTING, is the task's and never set here).
+struct ArmingChecks {
+    std::uint32_t failing = 0;  // the checks that would refuse an arm request now
+    std::uint32_t skipped = 0;  // the checks configured off or not applicable in this mode
+
+    // What an arm request returns: the first failing check in the order the
+    // checks run. That is not the order of the values: the remote control's
+    // checks (12, 13) run right after NOT_IN_CONTROL, before the setpoint check
+    // (5), and an arm request's refusal must not change.
+    [[nodiscard]] core::ArmingResult first_failing() const
+    {
+        using core::ArmingResult;
+        constexpr std::array order{ArmingResult::BoardNotVerified,   ArmingResult::EmergencyStop,
+                                   ArmingResult::WrongMode,          ArmingResult::NotInControl,
+                                   ArmingResult::RcNotConnected,     ArmingResult::SticksNotCentred,
+                                   ArmingResult::SetpointsActive,    ArmingResult::BringupRunning,
+                                   ArmingResult::ActuatorPowerOff,   ArmingResult::ActuatorsNotStarted,
+                                   ArmingResult::LocalMenuOpen,      ArmingResult::UnexpectedReset};
+        for (const ArmingResult check : order) {
+            if ((failing & (1U << static_cast<std::uint8_t>(check))) != 0U) {
+                return check;
+            }
+        }
+        return ArmingResult::Ok;
+    }
+
+    friend bool operator==(const ArmingChecks&, const ArmingChecks&) = default;
+};
+
+constexpr std::uint32_t bit(core::ArmingResult check)
+{
+    return 1U << static_cast<std::uint8_t>(check);
+}
+
 class Commander {
 public:
     // Unbroken powered samples needed before actuator power counts as present.
@@ -109,6 +145,11 @@ public:
     // Setpoint arbitration: whether a setpoint at `level` from `source` counts
     // now: core::setpoint_accepted, while armed and no bring-up case runs.
     [[nodiscard]] bool accepts_setpoint(core::ControlSource source, core::SetpointLevel level) const;
+
+    // The arming checks as an arm request from `source` evaluates them,
+    // without arming. arming_checks() asks for the source in control.
+    [[nodiscard]] ArmingChecks evaluate_arming(std::uint64_t now_us, core::ControlSource source) const;
+    [[nodiscard]] ArmingChecks arming_checks(std::uint64_t now_us) const;
 
     [[nodiscard]] const State& state() const { return state_; }
 

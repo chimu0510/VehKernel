@@ -86,6 +86,7 @@ void CommanderTask::run()
     commander_.update(now, inputs, settings);
     const State& state = commander_.state();
     publish(now, state);
+    publish_checks(now);
     if (reboot_ && now >= reboot_->at_us && !state.armed) {
         config_.reset(reboot_->target);  // Does not return.
     }
@@ -199,6 +200,19 @@ core::RestartEstimatorsResult CommanderTask::request_restart_estimators(std::uin
     }
     estimator_restart_publication_.publish(msg::EstimatorRestart{.timestamp = now_us});
     return core::RestartEstimatorsResult::Ok;
+}
+
+void CommanderTask::publish_checks(std::uint64_t now_us)
+{
+    const ArmingChecks checks = commander_.arming_checks(now_us);
+    if (checks_published_ && checks == last_checks_ && now_us < next_checks_us_) {
+        return;
+    }
+    checks_published_ = true;
+    last_checks_ = checks;
+    next_checks_us_ = now_us + status_interval_us;
+    checks_publication_.publish(
+        msg::ArmingChecks{.timestamp = now_us, .failing = checks.failing, .skipped = checks.skipped});
 }
 
 void CommanderTask::publish(std::uint64_t now_us, const State& state)

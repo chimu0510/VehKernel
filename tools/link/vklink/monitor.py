@@ -251,6 +251,18 @@ def vehicle_status_line(status) -> str:
             f"fault_address=0x{status.fault_address:08X}")
 
 
+def arming_check_names(mask: int) -> str:
+    """The arming checks a bitmask of arming_checks names, comma-separated, in the order of the checks."""
+    names = [ARMING_REJECT_REASONS.get(bit, f"bit {bit}").replace(" ", "_") for bit in range(1, 32)
+             if mask & (1 << bit)]
+    return ",".join(names) or "none"
+
+
+def arming_checks_line(checks) -> str:
+    """arming_checks as a space-separated key=value line (spec 0016): bit n stands for arming_result value n."""
+    return f"arming_checks failing={arming_check_names(checks.failing)} skipped={arming_check_names(checks.skipped)}"
+
+
 def firmware_info_line(info) -> str:
     """firmware_info as a space-separated key=value line (ADR-0023)."""
     return (f"firmware version={info.version_major}.{info.version_minor}.{info.version_patch} "
@@ -1012,6 +1024,8 @@ class LinkMonitor:
             lines.append(param_status_line(status))
         for _, status in self.latest("vehicle_status"):
             lines.append(vehicle_status_line(status))
+        for _, checks in self.latest("arming_checks"):
+            lines.append(arming_checks_line(checks))
         for _, menu in self.latest("local_menu"):
             lines.append(local_menu_line(menu))
         for instance, status in self.latest("magnetometer_status"):

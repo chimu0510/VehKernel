@@ -674,3 +674,163 @@ TEST_F(CommanderTest, TheRemoteControlDoesNotMatterInTest)
 }
 
 }  // namespace
+
+// --- The arming_checks bitmasks (spec 0016, #206) ---
+
+namespace {
+
+using vk::commander::ArmingChecks;
+using vk::commander::bit;
+
+class ArmingChecksTest : public CommanderTest {
+protected:
+    // The bits must say what an arm request returns in the same state.
+    void expect_matches_request(ArmingResult expected_first)
+    {
+        const ArmingChecks checks = commander.arming_checks(now);
+        EXPECT_EQ(checks.first_failing(), expected_first);
+        EXPECT_EQ(commander.request_arming(now, link0, true), expected_first);
+        commander.request_arming(now, link0, false);
+    }
+};
+
+TEST_F(ArmingChecksTest, NothingFailsWhenArmingWouldSucceed)
+{
+    ready();
+    const ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_EQ(checks.failing, 0U);
+    // TEST needs no remote control; the power check runs.
+    EXPECT_EQ(checks.skipped, bit(ArmingResult::RcNotConnected) | bit(ArmingResult::SticksNotCentred));
+    expect_matches_request(ArmingResult::Ok);
+}
+
+TEST_F(ArmingChecksTest, EachCheckSetsItsOwnBit)
+{
+    ready();
+    inputs.board_verified = false;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::BoardNotVerified));
+    expect_matches_request(ArmingResult::BoardNotVerified);
+    inputs.board_verified = true;
+    step();
+
+    commander.request_emergency_stop(now, true);
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::EmergencyStop));
+    expect_matches_request(ArmingResult::EmergencyStop);
+    commander.request_emergency_stop(now, false);
+
+    inputs.setpoints_idle = false;
+    inputs.last_setpoint_us = now;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::SetpointsActive));
+    expect_matches_request(ArmingResult::SetpointsActive);
+    inputs.setpoints_idle = true;
+
+    inputs.bringup_running = true;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::BringupRunning));
+    expect_matches_request(ArmingResult::BringupRunning);
+    inputs.bringup_running = false;
+
+    inputs.actuator_power = false;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::ActuatorPowerOff));
+    expect_matches_request(ArmingResult::ActuatorPowerOff);
+    inputs.actuator_power = true;
+    step(Commander::power_settle_us + cycle_us);
+
+    inputs.actuators_started = false;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::ActuatorsNotStarted));
+    expect_matches_request(ArmingResult::ActuatorsNotStarted);
+    inputs.actuators_started = true;
+
+    inputs.local_menu_open = true;
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::LocalMenuOpen));
+    expect_matches_request(ArmingResult::LocalMenuOpen);
+    inputs.local_menu_open = false;
+
+    inputs.reset_report = {.cause = vk::core::ResetCause::Watchdog};
+    step();
+    EXPECT_EQ(commander.arming_checks(now).failing, bit(ArmingResult::UnexpectedReset));
+    expect_matches_request(ArmingResult::UnexpectedReset);
+}
+
+TEST_F(ArmingChecksTest, ASourceNotInControlFailsNotInControl)
+{
+    ready();
+    EXPECT_EQ(commander.evaluate_arming(now, link1).failing, bit(ArmingResult::NotInControl));
+    EXPECT_EQ(commander.evaluate_arming(now, link1).first_failing(), commander.request_arming(now, link1, true));
+}
+
+TEST_F(ArmingChecksTest, EveryFailingCheckIsReportedAndTheFirstIsTheRequestsResult)
+{
+    step(Commander::power_settle_us + cycle_us);  // STANDBY, in no one's control
+    inputs.board_verified = false;
+    inputs.actuators_started = false;
+    inputs.local_menu_open = true;
+    step();
+    const ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_EQ(checks.failing, bit(ArmingResult::BoardNotVerified) | bit(ArmingResult::WrongMode) |
+                                  bit(ArmingResult::ActuatorsNotStarted) | bit(ArmingResult::LocalMenuOpen));
+    EXPECT_EQ(checks.failing & bit(ArmingResult::Ok), 0U);
+    EXPECT_EQ(commander.request_arming(now, vk::core::no_source, true), checks.first_failing());
+    EXPECT_EQ(checks.first_failing(), ArmingResult::BoardNotVerified);
+}
+
+TEST_F(ArmingChecksTest, ThePowerCheckIsSkippedWhenComArmCheckClearsIt)
+{
+    settings.arm_check = 0;
+    ready();
+    inputs.actuator_power = false;
+    step();
+    const ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_EQ(checks.failing, 0U);
+    EXPECT_NE(checks.skipped & bit(ArmingResult::ActuatorPowerOff), 0U);
+    expect_matches_request(ArmingResult::Ok);
+}
+
+TEST_F(ArmingChecksTest, TheRemoteControlChecksApplyInManualOnly)
+{
+    step(Commander::power_settle_us + cycle_us);
+    ASSERT_EQ(commander.request_mode(now, remote_control, Mode::Manual), ModeResult::Ok);
+    ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_EQ(checks.failing, bit(ArmingResult::RcNotConnected) | bit(ArmingResult::SticksNotCentred));
+    EXPECT_EQ(checks.skipped, 0U);
+    EXPECT_EQ(commander.request_arming(now, remote_control, true), checks.first_failing());
+    inputs.remote_control_connected = true;
+    step();
+    checks = commander.arming_checks(now);
+    EXPECT_EQ(checks.failing, bit(ArmingResult::SticksNotCentred));
+    EXPECT_EQ(commander.request_arming(now, remote_control, true), checks.first_failing());
+}
+
+// The checks run in a fixed order that is not the order of the values.
+TEST_F(ArmingChecksTest, TheRemoteControlChecksComeBeforeTheSetpointCheck)
+{
+    step(Commander::power_settle_us + cycle_us);
+    ASSERT_EQ(commander.request_mode(now, remote_control, Mode::Manual), ModeResult::Ok);
+    inputs.setpoints_idle = false;
+    inputs.last_setpoint_us = now;
+    step();
+    const ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_NE(checks.failing & bit(ArmingResult::SetpointsActive), 0U);
+    EXPECT_EQ(checks.first_failing(), ArmingResult::RcNotConnected);
+    EXPECT_EQ(commander.request_arming(now, remote_control, true), ArmingResult::RcNotConnected);
+}
+
+TEST_F(ArmingChecksTest, SticksOffCentreComeBeforeTheLocalMenu)
+{
+    step(Commander::power_settle_us + cycle_us);
+    ASSERT_EQ(commander.request_mode(now, remote_control, Mode::Manual), ModeResult::Ok);
+    inputs.remote_control_connected = true;
+    inputs.local_menu_open = true;
+    step();
+    const ArmingChecks checks = commander.arming_checks(now);
+    EXPECT_NE(checks.failing & bit(ArmingResult::LocalMenuOpen), 0U);
+    EXPECT_EQ(checks.first_failing(), ArmingResult::SticksNotCentred);
+    EXPECT_EQ(commander.request_arming(now, remote_control, true), ArmingResult::SticksNotCentred);
+}
+
+}  // namespace

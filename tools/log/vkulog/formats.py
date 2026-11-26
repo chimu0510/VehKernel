@@ -12,6 +12,7 @@ FORMATS = {
     'actuator_outputs': 'actuator_outputs:uint64_t timestamp;float[4] output;float[4] target;',
     'actuator_setpoint': 'actuator_setpoint:uint64_t timestamp;uint8_t source;float[4] wheel_speed;',
     'allocation_status': 'allocation_status:uint64_t timestamp;float vx;float vy;float yaw_rate;float scale;uint8_t limited;',
+    'arming_checks': 'arming_checks:uint64_t timestamp;uint32_t failing;uint32_t skipped;',
     'arming_state': 'arming_state:uint64_t timestamp;bool armed;',
     'body_velocity_measurement': 'body_velocity_measurement:uint64_t timestamp;uint64_t timestamp_sample;uint8_t source;float vx;float vy;float yaw_rate;float[3] variance;float residual;',
     'body_velocity_setpoint': 'body_velocity_setpoint:uint64_t timestamp;uint8_t source;float vx;float vy;float yaw_rate;',
