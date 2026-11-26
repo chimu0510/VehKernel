@@ -10,7 +10,7 @@
 #include <vk/core/work_queue.hpp>
 #include <vk/drivers/icm20948.hpp>
 #include <vk/drivers/ssd1306.hpp>
-#include <vk/local_display/pages.hpp>
+#include <vk/local_display/text_screen.hpp>
 #include <vk/msg/imu_sample.hpp>
 
 #include <array>

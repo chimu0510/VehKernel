@@ -11,7 +11,7 @@
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/link/link.hpp>
 #include <vk/link/topic_map.hpp>
-#include <vk/local_display/pages.hpp>
+#include <vk/local_display/text_screen.hpp>
 #include <vk/msg/imu_sample.hpp>
 #include <vk/msg/link_status.hpp>
 

@@ -7,7 +7,7 @@
 #include <vk/core/static_instance.hpp>
 #include <vk/core/work_queue.hpp>
 #include <vk/drivers/ssd1306.hpp>
-#include <vk/local_display/pages.hpp>
+#include <vk/local_display/text_screen.hpp>
 
 #include <cstdint>
 

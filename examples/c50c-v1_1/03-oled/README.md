@@ -63,7 +63,7 @@ In SITL, each counter increment emits a `counter=<n>` report line to standard ou
 
 The complete source code is in `main.cpp`:
 
-- **Includes**: `<support.hpp>` provides the platform abstraction (`example::init()`, `example::display()`, `example::sleep_until_us()`, `example::report()`, `example::running()`). `<vk/drivers/ssd1306.hpp>` provides the `vk::drivers::Ssd1306` driver. `<vk/hal/clock.hpp>` provides the system clock. `<vk/local_display/pages.hpp>` provides `vk::local_display::TextScreen`.
+- **Includes**: `<support.hpp>` provides the platform abstraction (`example::init()`, `example::display()`, `example::sleep_until_us()`, `example::report()`, `example::running()`). `<vk/drivers/ssd1306.hpp>` provides the `vk::drivers::Ssd1306` driver. `<vk/hal/clock.hpp>` provides the system clock. `<vk/local_display/text_screen.hpp>` provides `vk::local_display::TextScreen`.
 - **Text formatting (`Line`)**: Formats text and unsigned integers into a fixed-size `std::array<char, 21>` buffer without pulling in newlib heap allocation or `snprintf` (`_sbrk`).
 - **Text screen (`TextScreen`)**: The example reuses the `local_display` module's text screen: `screen.clear()` clears all 8 lines to spaces, `screen.put(line, col, text)` writes strings into the grid, and `screen.draw(frame)` renders the glyphs into `MonoFrame`.
 - **Display initialisation and first frame**: The loop calls `display.update()` directly without manual delays. On the first call, `Ssd1306::update()` holds the hardware reset line active for 100 ms. Once 100 ms has passed, the subsequent call brings the controller out of reset, sends the vendor initialisation sequence (charge pump, contrast, addressing), and marks all 8 pages as stale, immediately flushing the entire first frame to the panel. Subsequent calls update only the lines that changed.
@@ -84,7 +84,7 @@ The complete source code is in `main.cpp`:
 - [ADR-0022: Local display and local menu](../../../docs/adr/0022-local-display-and-local-menu.md)
 - [ADR-0025: Board examples](../../../docs/adr/0025-board-examples.md)
 - [SSD1306 driver](../../../drivers/ssd1306/include/vk/drivers/ssd1306.hpp)
-- [TextScreen (`pages.hpp`)](../../../modules/local_display/include/vk/local_display/pages.hpp)
+- [TextScreen (`text_screen.hpp`)](../../../modules/local_display/include/vk/local_display/text_screen.hpp)
 - [Simulated SSD1306](../../../sim/include/vk/sim/ssd1306.hpp)
 - [Building guide](../../../docs/guide/building.md)
 - [Examples guide](../../../docs/guide/examples.md)

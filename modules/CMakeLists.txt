@@ -107,7 +107,8 @@ if(CONFIG_LOCAL_DISPLAY)
     local_display/src/page_motion.cpp
     local_display/src/page_overview.cpp
     local_display/src/pages.cpp
-    local_display/src/status_bar.cpp)
+    local_display/src/status_bar.cpp
+    local_display/src/text_screen.cpp)
   if(CONFIG_LOCAL_MENU)
     target_sources(vk_local_display PRIVATE
       local_display/src/local_menu_task.cpp

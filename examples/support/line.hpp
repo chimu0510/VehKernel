@@ -2,7 +2,7 @@
 // Fixed-size line formatting without heap allocation (ADR-0007, ADR-0025).
 #pragma once
 
-#include <vk/local_display/pages.hpp>
+#include <vk/local_display/text_screen.hpp>
 
 #include <array>
 #include <cmath>

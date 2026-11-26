@@ -99,7 +99,7 @@ The complete source code is in `main.cpp`:
   - `<vk/core/work_queue.hpp>`: rate-tiered work queues and items (`vk::core::WorkItem`, `vk::core::WorkQueueTier`).
   - `<vk/drivers/icm20948.hpp>`: ICM20948 IMU driver.
   - `<vk/drivers/ssd1306.hpp>`: SSD1306 OLED display driver.
-  - `<vk/local_display/pages.hpp>`: `vk::local_display::TextScreen` 21 x 8 text buffer.
+  - `<vk/local_display/text_screen.hpp>`: `vk::local_display::TextScreen` 21 x 8 text buffer.
   - `<vk/msg/imu_sample.hpp>`: schema-generated IMU message definition.
 - **Platform abstraction (`example::imu()`)**:
   - Implemented in `examples/support/stm32f4/support.hpp` for hardware and `examples/support/sitl/support.hpp` for SITL simulation.

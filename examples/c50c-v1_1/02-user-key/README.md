@@ -69,7 +69,7 @@ The complete source code is in `main.cpp`:
 - [ADR-0011: TOML board definitions](../../../docs/adr/0011-toml-board-definition-toolchain.md)
 - [ADR-0022: Local display and local menu](../../../docs/adr/0022-local-display-and-local-menu.md)
 - [ADR-0025: Board examples](../../../docs/adr/0025-board-examples.md)
-- Firmware debouncer: [`modules/local_display/include/vk/local_display/user_key.hpp`](../../../modules/local_display/include/vk/local_display/user_key.hpp) — the production firmware implementation of `vk::local_display::UserKey`, which handles short presses, long presses (1 s), auto-repeat (200 ms), and ignores a key held at boot until released.
+- Firmware debouncer: [`modules/local_display/include/vk/local_display/user_key.hpp`](../../../modules/local_display/include/vk/local_display/user_key.hpp) — the production firmware implementation of `vk::local_display::UserKey`, which reports a click, a double click (two presses within 250 ms) and a long press (1 s), and ignores a key held at boot until released (spec 0016).
 - [Building guide](../../../docs/guide/building.md)
 - [Flashing guide](../../../docs/guide/flashing.md)
 - [C50C V1.1 board page](../../../docs/boards/c50c-v1_1.md)

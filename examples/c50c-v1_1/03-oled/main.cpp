@@ -5,7 +5,7 @@
 #include <support.hpp>
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/hal/clock.hpp>
-#include <vk/local_display/pages.hpp>
+#include <vk/local_display/text_screen.hpp>
 
 #include <cstdint>
 

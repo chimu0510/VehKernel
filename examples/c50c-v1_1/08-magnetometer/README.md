@@ -144,7 +144,7 @@ The complete source code is in `main.cpp`:
   - `<vk/drivers/icm20948.hpp>`: ICM20948 driver with AK09916 magnetometer support (`DRIVER_ICM20948_MAG`).
   - `<vk/drivers/ssd1306.hpp>`: SSD1306 OLED display driver.
   - `<vk/link/link.hpp>`, `<vk/link/topic_map.hpp>`: the Link and its topic map.
-  - `<vk/local_display/pages.hpp>`: `vk::local_display::TextScreen` 21 x 8 text buffer.
+  - `<vk/local_display/text_screen.hpp>`: `vk::local_display::TextScreen` 21 x 8 text buffer.
   - `<vk/msg/link_status.hpp>`: schema-generated Link statistics message definition.
   - `<vk/msg/magnetometer_sample.hpp>`: schema-generated magnetometer message definition.
 - **Subscriber work item (`MagSubscriberItem`)**:
