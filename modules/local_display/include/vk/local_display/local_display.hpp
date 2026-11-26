@@ -13,7 +13,10 @@
 // copies of small messages, so a run stays far below its budget.
 // They are taken at most every 200 ms, every 100 ms while the attitude page
 // shows, so values change at most 5 Hz, the horizon 10 Hz, and stay
-// readable. A run that changes nothing writes nothing; a full screen costs
+// readable. The frame is redrawn only on that tick or when the menu (its page,
+// scroll, screen, key state) or the "disarm first" notice changed, and at most
+// four SSD1306 pages are sent per run; a run that changes nothing draws and
+// writes nothing. A full screen costs
 // about 4.5 ms of busy-waiting on the C50C's GPIO lines, on the lowest-priority queue, so
 // it never delays wq:ctrl or a Link. The menu runs on the same work queue,
 // so it never changes during a run. It publishes nothing: producing modules
@@ -77,6 +80,10 @@ public:
     static constexpr std::uint64_t manual_timeout_us = remote_control_timeout_us;  // the remote control is lost after this silence
     static constexpr std::uint64_t magnetometer_timeout_us = 1'000'000;  // a magnetometer sample older than this is not shown
     static constexpr std::size_t imu_reads_per_tick = 8;  // imu_sample's queue is shorter
+    // SSD1306 pages sent per run: half the screen, so a run's busy-waiting on the
+    // software bus stays well below the 10 ms budget; a full-screen change
+    // takes two runs (100 ms), and the first half goes out in the run of the key press.
+    static constexpr std::size_t pages_per_run = drivers::MonoFrame::pages / 2;
 
     // `menu`, if any, and `protection`, which the menu task may share, must run on the same work queue.
     LocalDisplay(drivers::Ssd1306& display, const LocalMenu* menu, DisplayProtection& protection,
@@ -114,6 +121,10 @@ private:
     std::uint64_t next_topics_us_ = 0;
     std::uint64_t manual_seen_us_ = 0;
     std::uint64_t magnetometer_seen_us_ = 0;
+    // What the frame was last drawn from, besides the topic tick: a redraw is due when any differs.
+    bool drawn_ = false;
+    std::uint32_t drawn_menu_revision_ = 0;
+    bool drawn_notice_ = false;
 };
 
 }  // namespace vk::local_display

@@ -447,6 +447,42 @@ TEST_F(LocalMenuTest, ThePressAndTheReleaseShowAtOnce)
     EXPECT_EQ(menu.state(), MenuState::Groups);
 }
 
+TEST_F(LocalMenuTest, TheRevisionCountsEveryKeyEventAndEveryChangeTheMenuMakesByItself)
+{
+    std::uint32_t revision = menu.revision();
+    menu.on_key(KeyEvent::None, now, false);
+    EXPECT_EQ(menu.revision(), revision);  // nothing happened
+    menu.tick(now, false);
+    EXPECT_EQ(menu.revision(), revision);  // closed: nothing to change
+    key(KeyEvent::Press);
+    EXPECT_NE(menu.revision(), revision);
+    revision = menu.revision();
+    key(KeyEvent::Release);
+    EXPECT_NE(menu.revision(), revision);
+    revision = menu.revision();
+    click();  // a page change
+    EXPECT_NE(menu.revision(), revision);
+    open();
+    revision = menu.revision();
+    menu.tick(now + 1, false);
+    EXPECT_EQ(menu.revision(), revision);  // open and idle: unchanged
+    menu.tick(now + LocalMenu::idle_close_us, false);
+    EXPECT_EQ(menu.state(), MenuState::Closed);
+    EXPECT_NE(menu.revision(), revision);  // closing by itself
+}
+
+TEST_F(LocalMenuTest, TheRevisionChangesWhenTheResultOfASaveEnds)
+{
+    edit(1);
+    run_action(MenuAction::Save);
+    ASSERT_TRUE(menu.result_showing());
+    const std::uint32_t revision = menu.revision();
+    menu.tick(now + LocalMenu::result_show_us - 1, false);
+    EXPECT_EQ(menu.revision(), revision);
+    menu.tick(now + LocalMenu::result_show_us, false);
+    EXPECT_NE(menu.revision(), revision);
+}
+
 TEST_F(LocalMenuTest, TheGroupsWrapAndALongPressClosesBackToThePageItCameFrom)
 {
     click(2);  // the motion page

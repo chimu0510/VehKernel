@@ -594,7 +594,7 @@ TEST_F(LocalDisplayWorkItemTest, AClickOnTheArmingChecksScrollsThenMovesOn)
     while (vk::local_display::arming_checks_can_scroll(scroll)) {
         scroll = vk::local_display::arming_checks_scrolled(scroll);
         click();
-        step(LocalDisplay::interval_us);
+        step(2ULL * LocalDisplay::interval_us);  // a scroll changes more than four SSD1306 pages
         inputs.arming_checks_scroll = scroll;
         EXPECT_EQ(menu.page(), Page::ArmingChecks);
         EXPECT_EQ(panel.pbm(), page_image(Page::ArmingChecks, inputs));
@@ -655,10 +655,83 @@ TEST_F(LocalDisplayWorkItemTest, TheSystemPageShowsFirmwareParametersAndTheWorkI
     EXPECT_EQ(panel.pbm(), page_image(Page::System, inputs));
 }
 
-TEST_F(LocalDisplayWorkItemTest, AKeyPressIsWhollyOnThePanelAfterOneRun)
+TEST_F(LocalDisplayWorkItemTest, AKeyPressIsWhollyOnThePanelAfterTwoRuns)
 {
+    // A page switch changes most of the screen, which goes out over two runs (four SSD1306 pages each).
     menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);
-    step(LocalDisplay::interval_us);
+    step(2ULL * LocalDisplay::interval_us);
+    EXPECT_EQ(panel.pbm(), expected_image(Page::Attitude));
+}
+
+// Whether the next run draws: the frame is filled, so only a redraw can change it, and restored if not.
+bool draws_in_next_run(vk::drivers::Ssd1306& driver, vk::core::WorkQueue& queue, std::uint64_t advance_us)
+{
+    const vk::drivers::MonoFrame kept = driver.frame();
+    for (auto& page : driver.frame().bytes) {
+        page.fill(0xFF);
+    }
+    const vk::drivers::MonoFrame filled = driver.frame();
+    fake_now += advance_us;
+    queue.process();
+    const bool drew = driver.frame() != filled;
+    if (!drew) {
+        driver.frame() = kept;
+    }
+    return drew;
+}
+
+TEST_F(LocalDisplayWorkItemTest, SteadyInputsAreNotRedrawnBetweenTopicTicks)
+{
+    step(1'000'000);
+    // Runs are 50 ms apart and the topic tick is every 200 ms: one run in four draws.
+    int draws = 0;
+    for (int run = 0; run < 20; ++run) {
+        draws += draws_in_next_run(driver, queue, LocalDisplay::interval_us) ? 1 : 0;
+    }
+    EXPECT_EQ(draws, 5);
+}
+
+TEST_F(LocalDisplayWorkItemTest, AKeyPressAPageChangeAMenuChangeAndTheNoticeRedrawInTheirRun)
+{
+    step(1'000'000);
+    const auto key = [this](vk::local_display::KeyEvent event, bool armed) {
+        menu.on_key(event, fake_now, armed);
+    };
+    // Lines the runs up between topic ticks, then checks that a quiet run does not draw.
+    const auto quiet = [&] {
+        while (!draws_in_next_run(driver, queue, LocalDisplay::interval_us)) {
+        }
+        EXPECT_FALSE(draws_in_next_run(driver, queue, LocalDisplay::interval_us));
+    };
+    quiet();
+    key(vk::local_display::KeyEvent::Press, false);  // the key indicator
+    EXPECT_TRUE(draws_in_next_run(driver, queue, LocalDisplay::interval_us));
+    quiet();
+    key(vk::local_display::KeyEvent::Click, false);  // a page change
+    EXPECT_TRUE(draws_in_next_run(driver, queue, LocalDisplay::interval_us));
+    quiet();
+    key(vk::local_display::KeyEvent::Double, true);  // armed: the notice appears
+    EXPECT_TRUE(draws_in_next_run(driver, queue, LocalDisplay::interval_us));
+    // The notice goes after two seconds, which redraws once more.
+    bool went = false;
+    for (int run = 0; run < 60 && !went; ++run) {
+        if (draws_in_next_run(driver, queue, LocalDisplay::interval_us) && !menu.disarm_notice(fake_now)) {
+            went = true;
+        }
+    }
+    EXPECT_TRUE(went);
+}
+
+TEST_F(LocalDisplayWorkItemTest, AFullScreenChangeIsSentInTwoRunsOfFourSsd1306Pages)
+{
+    menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);  // a page switch
+    fake_now += LocalDisplay::interval_us;
+    queue.process();
+    EXPECT_EQ(std::popcount(panel.take_written_pages()), 4);
+    fake_now += LocalDisplay::interval_us;
+    queue.process();
+    const auto second = panel.take_written_pages();
+    EXPECT_LE(std::popcount(second), 4);
     EXPECT_EQ(panel.pbm(), expected_image(Page::Attitude));
 }
 
@@ -718,7 +791,7 @@ TEST_F(LocalDisplayWorkItemTest, TopicValuesChangeAtMostFiveTimesASecond)
 TEST_F(LocalDisplayWorkItemTest, TheAttitudePageChangesAtMostTenTimesASecond)
 {
     menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);
-    step(LocalDisplay::interval_us);
+    step(2ULL * LocalDisplay::interval_us);  // the page switch goes out over two runs
     panel.take_written_pages();
     const Inputs inputs = sample_inputs();
     const int writes = step(1'000'000, &inputs);

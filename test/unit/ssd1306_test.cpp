@@ -110,6 +110,45 @@ TEST_F(Ssd1306Test, WritesOnlyChangedPagesAtMostTwoPerUpdate)
     EXPECT_EQ(driver.update(Ssd1306::reset_time_us), 0U);
 }
 
+TEST_F(Ssd1306Test, AFullScreenChangeGoesOutInTwoUpdatesOfFourPages)
+{
+    bring_up();
+    for (auto& page : driver.frame().bytes) {
+        page.fill(0x5A);
+    }
+    EXPECT_EQ(driver.update(Ssd1306::reset_time_us, 4), 4U);
+    EXPECT_EQ(driver.update(Ssd1306::reset_time_us, 4), 4U);
+    EXPECT_EQ(driver.update(Ssd1306::reset_time_us, 4), 0U);
+}
+
+TEST_F(Ssd1306Test, APageThatKeepsChangingDoesNotStarveTheOthers)
+{
+    bring_up();
+    // Page 0 changes before every update; page 5 changed once. With one page per update, page 5 still goes out
+    // within a full scan, because the scan resumes after the page it wrote last.
+    driver.frame().bytes.at(5).at(3) = 0x01;
+    bool page_5_sent = false;
+    for (std::uint8_t value = 1; value <= MonoFrame::pages && !page_5_sent; ++value) {
+        driver.frame().bytes.at(0).at(0) = value;
+        driver.update(Ssd1306::reset_time_us, 1);
+        page_5_sent = (panel.take_written_pages() & (1U << (MonoFrame::pages - 1 - 5))) != 0;
+    }
+    EXPECT_TRUE(page_5_sent);
+}
+
+TEST_F(Ssd1306Test, SettingsAreAppliedEvenWhenPagesAreWaiting)
+{
+    bring_up();
+    for (auto& page : driver.frame().bytes) {
+        page.fill(0x5A);
+    }
+    driver.set_contrast(0x10);
+    driver.set_display_on(false);
+    driver.update(Ssd1306::reset_time_us, 4);
+    EXPECT_FALSE(panel.displaying());
+    EXPECT_EQ(panel.contrast(), 0x10);
+}
+
 TEST_F(Ssd1306Test, AFrameSetBackIsNotWrittenAgain)
 {
     bring_up();

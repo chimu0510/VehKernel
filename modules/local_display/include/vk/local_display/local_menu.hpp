@@ -76,6 +76,9 @@ public:
     [[nodiscard]] std::size_t arming_checks_scroll() const { return arming_checks_scroll_; }
     // Whether the key is down, from the last event: a press shows at once.
     [[nodiscard]] bool key_down() const { return key_down_; }
+    // Counts every change of what the menu shows: a key event, the menu closing by itself, the result of a Save ending.
+    // The display redraws when it differs from the one it last drew.
+    [[nodiscard]] std::uint32_t revision() const { return revision_; }
     // Whether "the menu needs the vehicle disarmed" is to be shown at `now_us`.
     [[nodiscard]] bool disarm_notice(std::uint64_t now_us) const { return now_us < notice_until_us_; }
 
@@ -141,6 +144,7 @@ private:
     MenuAction action_ = MenuAction::Increase;
     bool times_ten_ = false;
     bool key_down_ = false;
+    std::uint32_t revision_ = 0;
     core::ParamValue staged_{};
     std::optional<core::ParamResult> last_result_;
     std::uint16_t last_parameter_ = no_item;

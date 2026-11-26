@@ -186,6 +186,7 @@ void LocalMenu::on_key(KeyEvent event, std::uint64_t now_us, bool armed)
         return;
     }
     last_key_us_ = now_us;
+    ++revision_;
     if (event == KeyEvent::Press || event == KeyEvent::Release) {
         key_down_ = event == KeyEvent::Press;
         return;
@@ -338,9 +339,11 @@ void LocalMenu::tick(std::uint64_t now_us, bool armed)
     }
     if (armed || now_us - last_key_us_ >= idle_close_us) {
         close();
+        ++revision_;
         return;
     }
     if (result_showing() && now_us >= result_until_us_) {
+        ++revision_;
         result_until_us_ = 0;
         state_ = MenuState::List;
     }

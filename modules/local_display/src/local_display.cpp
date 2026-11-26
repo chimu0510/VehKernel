@@ -61,7 +61,8 @@ void LocalDisplay::run()
     inputs_.uptime_us = now;
     inputs_.arming_checks_scroll = menu_ != nullptr ? menu_->arming_checks_scroll() : 0;
     const Page page = menu_ != nullptr ? menu_->page() : Page::Overview;
-    if (now >= next_topics_us_) {
+    const bool topic_tick = now >= next_topics_us_;
+    if (topic_tick) {
         msg::VehicleStatus status{};
         while (status_.copy(status)) {
             protection_.on_status(now, status);
@@ -130,6 +131,17 @@ void LocalDisplay::run()
     display_.set_display_on(protection_.display_on());
     display_.set_offset(protection_.shift_x(), protection_.shift_y());
 
+    // Draws only what may have changed: the topic tick, the menu or the notice.
+    const bool notice = menu_ != nullptr && !menu_open && menu_->disarm_notice(now);
+    const std::uint32_t revision = menu_ != nullptr ? menu_->revision() : 0;
+    if (drawn_ && !topic_tick && revision == drawn_menu_revision_ && notice == drawn_notice_) {
+        display_.update(now, pages_per_run);
+        return;
+    }
+    drawn_ = true;
+    drawn_menu_revision_ = revision;
+    drawn_notice_ = notice;
+
     Canvas canvas(display_.frame());
     if (menu_open) {
         canvas.clear();
@@ -137,7 +149,7 @@ void LocalDisplay::run()
         draw_status_bar(canvas, {.status = inputs_.status, .links = inputs_.links, .manual = inputs_.manual, .page = page});
     } else {
         render(page, inputs_, canvas);
-        if (menu_ != nullptr && menu_->disarm_notice(now)) {
+        if (notice) {
             // The notice replaces the page's bottom line.
             canvas.fill_rect(0, page_last - 7, static_cast<int>(drivers::MonoFrame::width) - 1, 8, false);
             canvas.text(1, page_last - 7, "MENU NEEDS DISARMED");
@@ -146,7 +158,7 @@ void LocalDisplay::run()
     if (menu_ != nullptr) {
         draw_key_indicator(*menu_, canvas);
     }
-    display_.update(now, drivers::MonoFrame::pages);
+    display_.update(now, pages_per_run);
 }
 
 }  // namespace vk::local_display
