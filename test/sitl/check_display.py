@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""L3 SITL display test (ADR-0018, spec 0007): the local display's status page.
+"""L3 SITL display test (ADR-0018, spec 0016): the local display's overview.
 
 Runs SITL with --display for a few seconds and reads the text on the image the
-simulated SSD1306 last showed: the status page, in STANDBY and disarmed, with
-the board verified and actuator power on.
+simulated SSD1306 last showed: the overview and its status bar, in STANDBY and
+disarmed, with actuator power on.
 
     check_display.py build/test/app/vehkernel-sitl
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from display_text import screen_text  # noqa: E402
+from display_text import has_text, load_glyphs  # noqa: E402
 
 DURATION_S = 3.0
 
@@ -41,17 +41,15 @@ def main() -> int:
         if not image.exists():
             print("FAIL: SITL wrote no display image")
             return 1
-        lines = screen_text(image)
-
-    print("display:")
-    for line in lines:
-        print(f"  |{line}|")
-    expected = {0: "STATUS            1/3", 1: "STANDBY DISARMED", 2: "ESTOP OFF BOARD OK", 3: "POWER ON   RST POWER"}
-    failures = [f"line {n}: expected {text!r}, got {lines[n]!r}" for n, text in expected.items() if lines[n] != text]
+        glyphs = load_glyphs()
+        # The overview's small text and the status bar, drawn at pixel positions; the mode and the
+        # arming state in large letters are not matched here (#210 rewrites this check).
+        expected = ["STB", "SRC NONE", "ESTOP OFF", "PWR ON", "RST POWER"]
+        failures = [f"{text!r} not found on the display" for text in expected if not has_text(image, text, glyphs)]
     for failure in failures:
         print(f"FAIL: {failure}")
     if not failures:
-        print("PASS: the status page shows STANDBY, disarmed, the board verified and actuator power on")
+        print("PASS: the overview shows STB, no source in control, the emergency stop off, actuator power on")
     return 1 if failures else 0
 
 

@@ -39,7 +39,7 @@ sys.path.insert(0, str(REPO / "tools" / "link"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from check_attitude import free_udp_port  # noqa: E402
-from display_text import has_text, is_dark, read_contrast, screen_text  # noqa: E402
+from display_text import has_text, is_dark, read_contrast  # noqa: E402
 from vklink.monitor import LinkMonitor, UdpConnection, load_messages  # noqa: E402
 from vklink.session import ParamReject, ParamType  # noqa: E402
 
@@ -121,11 +121,6 @@ class Menu:
         menus = self.monitor.latest("local_menu")
         return menus[0][1] if menus else None
 
-    def lines(self, settle: float = 0.2) -> list[str]:
-        """The text of the page the display shows, in its eight lines."""
-        self.monitor.run(settle)
-        return screen_text(self.image)
-
     def shows(self, text: str, settle: float = 0.2) -> bool:
         """Whether the menu screen the display shows has `text` drawn on it."""
         self.monitor.run(settle)
@@ -180,7 +175,7 @@ def run(args, check: Check, workdir: Path) -> None:
         menu.long()
         state = menu.state()
         check.expect(state is not None and state.state == CLOSED, "a long press at the groups closes the menu")
-        check.expect(menu.lines()[0].startswith("ATTITUDE"), "back on the page the menu was opened from")
+        check.expect(menu.shows("ROLL"), "back on the page the menu was opened from")
         menu.open_menu()
 
         print("2. SENS_BOARD_ROT to YAW_90 from the menu")
@@ -245,12 +240,12 @@ def run(args, check: Check, workdir: Path) -> None:
         menu.double()
         state = menu.state()
         check.expect(state is not None and state.state == CLOSED, "a double click does not open the menu while armed")
-        check.expect(menu.lines(settle=0.0)[7].startswith("MENU NEEDS DISARMED"),
+        check.expect(menu.shows("MENU NEEDS DISARMED", settle=0.0),
                      "the display says the menu needs the vehicle disarmed")
         menu.click()
-        check.expect(menu.lines()[0].startswith("LINK"), "a click switches to the next page")
+        check.expect(menu.shows("M/S"), "a click switches to the next page")
         menu.long()
-        check.expect(menu.lines()[0].startswith("STATUS"), "a long press returns to the first page")
+        check.expect(menu.shows("ESTOP"), "a long press returns to the first page")
         menu.arm(False)
     finally:
         menu.close()
@@ -281,9 +276,9 @@ def run(args, check: Check, workdir: Path) -> None:
         check.expect(is_dark(image), f"turned off after {OFF_S} s")
         menu.click()                     # only wakes the display
         check.expect(not is_dark(image) and read_contrast(image) == FULL_CONTRAST, "a click wakes the display")
-        check.expect(menu.lines()[0].startswith("STATUS"), "the click that woke it did not change the page")
+        check.expect(menu.shows("ESTOP"), "the click that woke it did not change the page")
         menu.click()
-        check.expect(menu.lines()[0].startswith("ATTITUDE"), "the next click acts")
+        check.expect(menu.shows("ROLL"), "the next click acts")
         reply = menu.arm(True)
         check.expect(reply is not None and not reply.refused, "armed")
         menu.monitor.run(OFF_S + 2.0)

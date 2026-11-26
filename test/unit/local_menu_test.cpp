@@ -9,11 +9,13 @@
 // then review them.
 #include <vk/core/bus.hpp>
 #include <vk/core/parameters.hpp>
+#include <vk/core/vehicle_control.hpp>
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/hal/display_bus.hpp>
 #include <vk/local_display/graphics.hpp>
 #include <vk/local_display/local_menu.hpp>
 #include <vk/local_display/pages.hpp>
+#include <vk/local_display/status_bar.hpp>
 #include <vk/local_display/user_key.hpp>
 #include <vk/msg/arming_state.hpp>
 #include <vk/sim/ssd1306.hpp>
@@ -356,16 +358,15 @@ protected:
 
 TEST_F(LocalMenuTest, ClosedAClickSwitchesPagesAndALongPressReturnsToTheFirst)
 {
-    EXPECT_EQ(menu.page(), Page::Status);
-    click();
-    EXPECT_EQ(menu.page(), Page::Attitude);
-    click();
-    EXPECT_EQ(menu.page(), Page::Link);
-    click();
-    EXPECT_EQ(menu.page(), Page::Status);
+    EXPECT_EQ(menu.page(), Page::Overview);
+    for (const Page page : {Page::Attitude, Page::Motion, Page::ArmingChecks, Page::Sensors, Page::Links,
+                            Page::RemoteControl, Page::System, Page::Overview}) {
+        click();
+        EXPECT_EQ(menu.page(), page);
+    }
     click();
     hold();
-    EXPECT_EQ(menu.page(), Page::Status);
+    EXPECT_EQ(menu.page(), Page::Overview);
     EXPECT_EQ(menu.state(), MenuState::Closed);
 }
 
@@ -394,7 +395,7 @@ TEST_F(LocalMenuTest, WhileArmedAClickChangesPageADoubleClickOnlyShowsANoticeAnd
     EXPECT_FALSE(menu.disarm_notice(now + LocalMenu::notice_us));
     EXPECT_EQ(menu.page(), Page::Attitude);
     key(KeyEvent::Long, true);
-    EXPECT_EQ(menu.page(), Page::Status);
+    EXPECT_EQ(menu.page(), Page::Overview);
     EXPECT_EQ(menu.state(), MenuState::Closed);
 }
 
@@ -414,7 +415,7 @@ TEST_F(LocalMenuTest, ThePressAndTheReleaseShowAtOnce)
 
 TEST_F(LocalMenuTest, TheGroupsWrapAndALongPressClosesBackToThePageItCameFrom)
 {
-    click(2);  // the link page
+    click(2);  // the motion page
     open();
     EXPECT_EQ(menu.group(), 0U);
     click();
@@ -423,7 +424,7 @@ TEST_F(LocalMenuTest, TheGroupsWrapAndALongPressClosesBackToThePageItCameFrom)
     EXPECT_EQ(menu.group(), 0U);  // wraps
     hold();
     EXPECT_EQ(menu.state(), MenuState::Closed);
-    EXPECT_EQ(menu.page(), Page::Link);
+    EXPECT_EQ(menu.page(), Page::Motion);
 }
 
 TEST_F(LocalMenuTest, AGroupListsItsParametersWrapsAndALongPressGoesBackToTheGroups)
@@ -694,7 +695,12 @@ std::string panel_image(const LocalMenu& menu)
     vk::sim::Ssd1306 panel;
     vk::drivers::Ssd1306 driver{vk::hal::DisplayDevice(panel)};
     vk::local_display::Canvas canvas(driver.frame());
+    canvas.clear();
     vk::local_display::render_menu(menu, canvas);
+    // The status bar of a disarmed vehicle in STANDBY with no Link up, on the first page.
+    vk::msg::VehicleStatus status{};
+    status.source = vk::core::no_source;
+    vk::local_display::draw_status_bar(canvas, {.status = status, .links = {}, .manual = std::nullopt, .page = Page::Overview});
     vk::local_display::draw_key_indicator(menu, canvas);
     driver.update(0);
     for (int i = 0; i < 4; ++i) {

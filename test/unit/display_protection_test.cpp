@@ -454,7 +454,7 @@ TEST_F(ProtectedDisplayTest, AKeyPressOnADimmedDisplayOnlyWakesItAndOneOnADarkOn
     // A click would change the page; this press only wakes the display.
     press(100'000);
     EXPECT_EQ(panel.contrast(), 0xEF);
-    EXPECT_EQ(menu_task.menu().page(), vk::local_display::Page::Status);
+    EXPECT_EQ(menu_task.menu().page(), vk::local_display::Page::Overview);
     // Awake, the next click acts.
     press(100'000);
     ASSERT_EQ(menu_task.menu().page(), vk::local_display::Page::Attitude);
@@ -472,7 +472,7 @@ TEST_F(ProtectedDisplayTest, AKeyPressOnADimmedDisplayOnlyWakesItAndOneOnADarkOn
     EXPECT_TRUE(panel.displaying());
     EXPECT_EQ(menu_task.menu().page(), vk::local_display::Page::Attitude);
     press(100'000);
-    EXPECT_EQ(menu_task.menu().page(), vk::local_display::Page::Link);
+    EXPECT_EQ(menu_task.menu().page(), vk::local_display::Page::Motion);
 }
 
 TEST_F(ProtectedDisplayTest, AVehicleEventWakesTheDisplay)

@@ -2,6 +2,7 @@
 #include <vk/local_display/local_menu.hpp>
 
 #include <vk/local_display/icons.hpp>
+#include <vk/local_display/pages.hpp>
 
 #include <algorithm>
 #include <array>
@@ -198,7 +199,7 @@ void LocalMenu::on_key(KeyEvent event, std::uint64_t now_us, bool armed)
         if (event == KeyEvent::Click) {
             page_ = next_page(page_);
         } else if (event == KeyEvent::Long) {
-            page_ = Page::Status;  // back to the overview
+            page_ = Page::Overview;
         } else if (event == KeyEvent::Double) {
             if (armed || group_count_ == 0) {
                 notice_until_us_ = now_us + notice_us;
@@ -350,19 +351,21 @@ void LocalMenu::close()
 
 namespace {
 
-// The screen's layout, in pixels: one pixel of margin on the right and at the
-// bottom, so the image can move by a pixel (display protection) without losing
-// any of it.
+// The screen's layout, in pixels, below the status bar: one pixel of margin on
+// the right and at the bottom, so the image can move by a pixel (display
+// protection) without losing any of it.
 constexpr int left = 1;
 constexpr int right = 125;      // the last column of text
-constexpr int title_y = 1;
-constexpr int rule_y = 9;
-constexpr int first_row_y = 11;
+constexpr int title_y = page_top + 1;
+constexpr int rule_y = title_y + 8;
+constexpr int first_row_y = rule_y + 2;
 constexpr int row_pitch = 9;    // a row of text and the highlight around it
-constexpr int visible_rows = 5;
-constexpr int hint_y = 56;
+constexpr int visible_rows = 4;
+constexpr int hint_y = 55;
 constexpr int box_y = 44;
-constexpr int box_height = 11;
+constexpr int box_height = 10;
+constexpr int now_y = 28;  // the edit screen's NOW and NEW lines
+constexpr int new_y = 36;
 
 int text_right(Canvas& canvas, int y, std::string_view text, bool on = true)
 {
@@ -475,14 +478,14 @@ void draw_edit(const LocalMenu& menu, Canvas& canvas)
     if (info.enum_values.empty()) {
         Text range;
         range.add("RANGE ").add(format_value(info, entry, info.min).view()).add(" TO ").add(format_value(info, entry, info.max).view());
-        canvas.text(left, 12, range.result().view());
+        canvas.text(left, first_row_y, range.result().view());
     } else {
-        canvas.text(left, 12, "CHOOSE ONE");
+        canvas.text(left, first_row_y, "CHOOSE ONE");
     }
-    canvas.text(left, 22, Text().add("NOW  ").add(format_value(info, entry, parameters.get(entry.index)).view()).result().view());
-    canvas.text(left, 32, Text().add("NEW  ").add(format_value(info, entry, menu.staged()).view()).result().view());
+    canvas.text(left, now_y, Text().add("NOW  ").add(format_value(info, entry, parameters.get(entry.index)).view()).result().view());
+    canvas.text(left, new_y, Text().add("NEW  ").add(format_value(info, entry, menu.staged()).view()).result().view());
     if (info.enum_values.empty()) {
-        text_right(canvas, 32, menu.times_ten() ? "STEP X10" : "STEP X1");
+        text_right(canvas, new_y, menu.times_ten() ? "STEP X10" : "STEP X1");
     }
 
     const std::optional<core::ParamResult> saved = menu.last_result();
@@ -522,7 +525,6 @@ void draw_edit(const LocalMenu& menu, Canvas& canvas)
 
 void render_menu(const LocalMenu& menu, Canvas& canvas)
 {
-    canvas.clear();
     switch (menu.state()) {
     case MenuState::Closed:
         return;

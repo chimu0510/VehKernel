@@ -103,7 +103,11 @@ if(CONFIG_LOCAL_DISPLAY)
     local_display/src/icons.cpp
     local_display/src/local_display.cpp
     local_display/src/local_menu.cpp
-    local_display/src/pages.cpp)
+    local_display/src/page_attitude.cpp
+    local_display/src/page_motion.cpp
+    local_display/src/page_overview.cpp
+    local_display/src/pages.cpp
+    local_display/src/status_bar.cpp)
   if(CONFIG_LOCAL_MENU)
     target_sources(vk_local_display PRIVATE
       local_display/src/local_menu_task.cpp

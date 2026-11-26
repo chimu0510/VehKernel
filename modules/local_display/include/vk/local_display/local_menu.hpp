@@ -132,7 +132,7 @@ private:
     std::array<Group, max_groups> groups_{};
     std::size_t group_count_ = 0;
     MenuState state_ = MenuState::Closed;
-    Page page_ = Page::Status;
+    Page page_ = Page::Overview;
     std::size_t group_ = 0;
     std::size_t position_ = 0;
     MenuAction action_ = MenuAction::Increase;
@@ -146,8 +146,9 @@ private:
     std::uint64_t notice_until_us_ = 0;
 };
 
-// The menu's screen, drawn on `canvas` over a cleared image: the group list,
-// a group's parameters or the edit screen.
+// The menu's screen, drawn on `canvas` over a cleared image, below the status
+// bar's rows, which the caller draws (draw_status_bar): the group list, a
+// group's parameters or the edit screen.
 void render_menu(const LocalMenu& menu, Canvas& canvas);
 
 // A dot at the bottom right corner while the key is down, so a press shows at
