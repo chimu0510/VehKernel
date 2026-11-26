@@ -12,7 +12,7 @@
 
 Built, in SITL and on the C50C V1.1: attitude estimation, body velocity control for a wheeled vehicle, a USB gamepad, a Link to the development host, logging and replay, parameters, the local display and the bootloader.
 
-Built, in SITL only so far: the ROS2 Bridge for ROS2 Jazzy ([ROS2 Bridge](docs/guide/ros2-bridge.md)), which publishes `/odom`, the TF, `/imu/data` and the vehicle status and drives the vehicle with `/cmd_vel`, and its ROS2 test layer (L5), which runs the Bridge against SITL in CI. It has not been checked on the board yet.
+Built, in SITL and on the C50C V1.1 with a Raspberry Pi 5: the ROS2 Bridge for ROS2 Jazzy ([ROS2 Bridge](docs/guide/ros2-bridge.md)), which publishes `/odom`, the TF, `/imu/data` and the vehicle status and drives the vehicle with `/cmd_vel`, and its ROS2 test layer (L5), which runs the Bridge against SITL in CI.
 
 Not built yet: Nav2 on top of the Bridge, vehicle models other than the wheeled one, and boards other than the C50C V1.1.
 

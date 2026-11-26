@@ -1,8 +1,8 @@
 # Spec 0015: the ROS2 Bridge, enough for Nav2 to drive
 
-**Status**: in progress. Issue: [#191](https://github.com/chimu0510/VehKernel/issues/191); tickets #192 to #198, with the hardware check in #198; #192 to #197 are done and the hardware check is open.
+**Status**: done. Issue: [#191](https://github.com/chimu0510/VehKernel/issues/191); tickets #192 to #198. The hardware check in [#198](https://github.com/chimu0510/VehKernel/issues/198) confirmed it on 2026-11-26 on the maintainer's Raspberry Pi 5 with the C50C V1.1, with ROS2 Jazzy from apt; a power cycle of the board and `teleop_twist_keyboard` itself were not covered.
 
-Until this spec is done, this file and its issue carry the same spec; update both in the same edit.
+This spec is done and no longer edited; later decisions live in the ADRs and the code, which win where they differ.
 
 ## Problem Statement
 
