@@ -406,3 +406,14 @@ def test_magnetometer_status_shows_the_setup_state_and_the_last_failure_by_name(
             "who_am_i=0x09 fifo_count=0 samples=0 failures=12 overflows=0 setups=0") in monitor.summary()
     view = render(monitor, "udp", width=200)
     assert any(line.startswith("magnetometer   instance=0 state=waiting_who_am_i") for line in view)
+
+
+def test_summary_and_live_view_show_the_firmware_identity():
+    connection = types.SimpleNamespace(send=lambda data: None, receive=lambda timeout: b"", close=lambda: None)
+    monitor = LinkMonitor(connection, messages())
+    info = types.SimpleNamespace(timestamp=1, version_major=0, version_minor=2, version_patch=1,
+                                 git_hash=0x0F80F754, git_dirty=True, board_id=22083)
+    monitor.topics[("firmware_info", 0)] = TopicStats("firmware_info", 0)
+    monitor.topics[("firmware_info", 0)].add(info)
+    assert "firmware version=0.2.1 git=0f80f754 dirty=1 board_id=22083" in monitor.summary()
+    assert "firmware       version=0.2.1 git=0f80f754 dirty=1 board_id=22083" in render(monitor, "udp", width=200)

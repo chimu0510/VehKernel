@@ -35,6 +35,7 @@ topic name=imu_sample instance=0 messages=1004 rate_hz=200.01
 topic name=link_status instance=0 messages=5 rate_hz=1.00
 topic name=vehicle_attitude instance=0 messages=250 rate_hz=49.95
 topic name=work_item_status instance=0 messages=5 rate_hz=1.00
+firmware version=0.2.0 git=f80f754f dirty=0 board_id=0
 mcu_link instance=0 frames_sent=1666 bytes_sent=87998 frames_received=9 bytes_received=138 drops=0 crc_errors=0 malformed=0 lost=0 handshake_state=connected rate_scale=100
 vehicle_status mode=STANDBY armed=0 source=none board_verified=1 emergency_stop=0 actuator_power=powered skipped_checks=none arming_refusal=none disarm_reason=none output_watchdog_trips=0 reset_cause=power_on fault=none fault_address=0x00000000
 work_item name=icm20948 runs=1000 overruns=0 run_time_last_us=14 run_time_max_us=40 run_time_mean_us=16 jitter_max_us=2885
@@ -124,11 +125,26 @@ tools/link/link_monitor.py --serial /dev/ttyACM0 param list
 
 Explicit options and the `VK_MSG_PYTHON_DIR` and `VK_PARAM_METADATA` environment variables take precedence over the bundle defaults if provided.
 
+## Firmware
+
+The firmware reports its version, commit, whether it was built from a tree with changes not committed, and the board ID on `firmware_info` once a second (ADR-0023). The live view and `--check` show it on their `firmware` line. `firmware` prints it once and exits non-zero when none arrives within `--wait` seconds (3 by default), as with firmware older than the topic:
+
+```bash
+tools/link/link_monitor.py --serial /dev/ttyACM0 firmware
+```
+
+```text
+firmware version=0.2.0 git=f80f754f dirty=0 board_id=22083
+```
+
+`git` is the commit's first 32 bits, read from the app descriptor the bootloader checks, so `git log` finds it. `dirty=1` means the image was built from changes that were not committed, so the commit alone does not say what it holds.
+
 ## Commands
 
 | Command | Guide |
 |---|---|
 | `record <file.ulg> --profile <name> [--duration <s>]` | [Logging](#logging) |
+| `firmware [--wait <s>]` | [Firmware](#firmware) |
 | `mag-read [--duration <s>] [--label <name>]` | [`08-magnetometer`](../../examples/c50c-v1_1/08-magnetometer/README.md#reading-a-heading-over-the-link) |
 | `param list`, `param get <name>`, `param set <name> <value>` | [Parameters](#parameters) |
 | `mode`, `arm`, `disarm`, `estop`, `drive`, `drive-body`, `bringup motors`, `sim-power` | [Driving the wheels](driving.md) |

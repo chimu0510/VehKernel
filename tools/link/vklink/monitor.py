@@ -251,6 +251,12 @@ def vehicle_status_line(status) -> str:
             f"fault_address=0x{status.fault_address:08X}")
 
 
+def firmware_info_line(info) -> str:
+    """firmware_info as a space-separated key=value line (ADR-0023)."""
+    return (f"firmware version={info.version_major}.{info.version_minor}.{info.version_patch} "
+            f"git={info.git_hash:08x} dirty={int(info.git_dirty)} board_id={info.board_id}")
+
+
 # The local menu's states (local_menu.state) and what its last Save returned.
 MENU_STATES = value_texts(MenuState)
 NO_MENU_ITEM = 0xFFFF
@@ -1000,6 +1006,8 @@ class LinkMonitor:
                 f"lost={status.lost} handshake_state={handshake_state} "
                 f"rate_scale={getattr(status, 'rate_scale', 100)}"
             )
+        for _, info in self.latest("firmware_info"):
+            lines.append(firmware_info_line(info))
         for _, status in self.latest("parameter_status"):
             lines.append(param_status_line(status))
         for _, status in self.latest("vehicle_status"):

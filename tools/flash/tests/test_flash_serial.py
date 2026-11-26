@@ -138,13 +138,21 @@ def test_new_board_takes_the_sequence_from_the_board_definition(tmp_path):
 
 # update: the Link monitor and uploader.py are fakes that log their arguments.
 
-def fake_link(tmp_path: Path, outcome: str) -> Path:
-    """accept: the firmware accepts; silent: no handshake; refuse: refused while armed."""
+def fake_link(tmp_path: Path, outcome: str, firmware: str = "silent") -> Path:
+    """accept: the firmware accepts; silent: no handshake; refuse: refused while armed.
+    For the firmware command after the update: a git hash it reports, none for a
+    firmware without firmware_info, or silent for no handshake."""
     script = tmp_path / "link_monitor.py"
     script.write_text(f"""import sys
 with open({str(tmp_path / 'link.log')!r}, 'a') as log:
     log.write(' '.join(sys.argv[1:]) + '\\n')
-if {outcome!r} == 'accept':
+if 'firmware' in sys.argv:
+    if {firmware!r} == 'silent':
+        sys.exit(print('FAIL: no handshake with the MCU within 10 s', file=sys.stderr) or 1)
+    if {firmware!r} == 'none':
+        sys.exit(print('FAIL: no firmware_info in 5 s; the firmware may predate it', file=sys.stderr) or 1)
+    print('firmware version=0.2.0 git={firmware} dirty=0 board_id=22083')
+elif {outcome!r} == 'accept':
     print('reboot=bootloader')
 elif {outcome!r} == 'refuse':
     sys.exit(print('FAIL: reboot refused: armed', file=sys.stderr) or 1)
@@ -206,12 +214,15 @@ def flasher(tool, monkeypatch):
     return module
 
 
-def update(flasher, tmp_path: Path, monkeypatch, link: str, uploader: str):
+def update(flasher, tmp_path: Path, monkeypatch, link: str, uploader: str, commit: str | None = None,
+           firmware: str = "silent", extra: tuple[str, ...] = ()):
     monkeypatch.setenv("VK_TEST_DIR", str(tmp_path))
     build = make_build(tmp_path)
+    if commit is not None:
+        (build / "app" / "vehkernel.apj").write_text(json.dumps({"git_identity": commit}))
     code = flasher.main(["--build", str(build), "--port", "/dev/fake",
-                         "--link-monitor", str(fake_link(tmp_path, link)),
-                         "--uploader", str(fake_uploader(tmp_path, uploader)), "update"])
+                         "--link-monitor", str(fake_link(tmp_path, link, firmware)),
+                         "--uploader", str(fake_uploader(tmp_path, uploader)), "update", *extra])
     logs = {}
     for name in ("link", "uploader"):
         log = tmp_path / f"{name}.log"
@@ -273,6 +284,50 @@ def test_update_gives_up_when_uploader_does_not_finish(flasher, tmp_path, monkey
     code, _logs, _build = update(flasher, tmp_path, monkeypatch, link="silent", uploader="after-restart")
     assert code == 1
     assert "did not finish within" in capsys.readouterr().err
+
+
+def test_update_checks_that_the_firmware_which_boots_is_the_image(flasher, tmp_path, monkeypatch, capsys):
+    code, logs, _build = update(flasher, tmp_path, monkeypatch, link="accept", uploader="flash",
+                                commit="f80f754f", firmware="f80f754f")
+    assert code == 0, capsys.readouterr().err
+    assert len(logs["link"]) == 2 and logs["link"][1].endswith("firmware --wait 5")
+    assert "--handshake-timeout 10" in logs["link"][1]
+    assert "the image written" in capsys.readouterr().out
+
+
+def test_update_fails_when_another_firmware_boots(flasher, tmp_path, monkeypatch, capsys):
+    code, _logs, _build = update(flasher, tmp_path, monkeypatch, link="accept", uploader="flash",
+                                 commit="f80f754f", firmware="64aa2a60")
+    assert code == 1
+    assert "the firmware that booted is 64aa2a60, not the image's f80f754f" in capsys.readouterr().err
+
+
+def test_update_fails_when_no_firmware_answers_after_it(flasher, tmp_path, monkeypatch, capsys):
+    code, _logs, _build = update(flasher, tmp_path, monkeypatch, link="accept", uploader="flash",
+                                 commit="f80f754f", firmware="silent")
+    assert code == 1
+    assert "may not have booted" in capsys.readouterr().err
+
+
+def test_update_only_warns_for_a_firmware_without_firmware_info(flasher, tmp_path, monkeypatch, capsys):
+    code, _logs, _build = update(flasher, tmp_path, monkeypatch, link="accept", uploader="flash",
+                                 commit="f80f754f", firmware="none")
+    assert code == 0, capsys.readouterr().err
+    assert "sends no firmware_info" in capsys.readouterr().out
+
+
+def test_update_skips_the_check_when_asked_or_when_the_image_names_no_commit(flasher, tmp_path, monkeypatch,
+                                                                           capsys):
+    code, logs, _build = update(flasher, tmp_path, monkeypatch, link="accept", uploader="flash",
+                                commit="f80f754f", firmware="silent", extra=("--no-verify",))
+    assert code == 0, capsys.readouterr().err
+    assert len(logs["link"]) == 1
+    second = tmp_path / "second"
+    second.mkdir()
+    code, logs, _build = update(flasher, second, monkeypatch, link="accept", uploader="flash")
+    assert code == 0
+    assert len(logs["link"]) == 1
+    assert "names no commit" in capsys.readouterr().out
 
 
 class FakeBootloader:

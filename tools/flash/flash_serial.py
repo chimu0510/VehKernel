@@ -19,7 +19,9 @@ the STM32 system bootloader is entered and left without touching the board.
   bootloader within its boot window, which holds it there. Either way the
   pinned ArduPilot uploader.py then writes vehkernel.apj, which the
   bootloader checks and writes to the FIRMWARE region only: stored
-  parameters survive.
+  parameters survive. Then it reads the booted firmware's firmware_info over
+  the Link and fails unless its git hash is the .apj's (ADR-0023);
+  --no-verify skips that.
 - backup reads the whole chip, and reset restarts the board.
 
     tools/flash/flash_serial.py new-board                # back up, erase the whole chip, write all
@@ -38,6 +40,7 @@ import fcntl
 import json
 import os
 import queue
+import re
 import select
 import struct
 import subprocess
@@ -64,6 +67,10 @@ RUN_UPLOADER = Path(__file__).resolve().parent / "run_uploader.py"
 # How long the Link monitor may take to ask for the bootloader, and uploader.py to update.
 LINK_TIMEOUT_S = 20.0
 UPLOAD_TIMEOUT_S = 180.0
+# How long the firmware may take to boot after an update and report firmware_info.
+FIRMWARE_TIMEOUT_S = 20.0
+FIRMWARE_HANDSHAKE_S = 10.0
+FIRMWARE_WAIT_S = 5.0
 # What link_monitor.py prints when the firmware refuses the request.
 REBOOT_REFUSED = "reboot refused"
 # uploader.py does not exit when the bootloader's board ID is not the image's: it waits for another board.
@@ -291,6 +298,42 @@ def ask_link(args: argparse.Namespace, build: Build) -> bool:
     return result.returncode == 0
 
 
+def image_commit(apj: Path) -> str | None:
+    """The commit the .apj names in git_identity, 8 hex digits, or None when it names none."""
+    try:
+        identity = json.loads(apj.read_text()).get("git_identity")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if isinstance(identity, str) and re.fullmatch(r"[0-9a-f]{8}", identity):
+        return identity
+    return None
+
+
+def verify_firmware(args: argparse.Namespace, build: Build, commit: str) -> None:
+    """Reads the booted firmware's identity over the Link and fails unless it
+    is the image's commit (ADR-0023). A firmware that answers without
+    firmware_info predates it: then only a warning."""
+    command = [sys.executable, str(args.link_monitor), "--serial", args.port, "--baud", str(args.link_baud),
+               "--msg-dir", str(build.msg_dir), "--handshake-timeout", f"{FIRMWARE_HANDSHAKE_S:g}",
+               "firmware", "--wait", f"{FIRMWARE_WAIT_S:g}"]
+    print(f"Checking over the Link on {args.port} that the firmware which booted is {commit}", flush=True)
+    try:
+        result = subprocess.run(command, check=False, timeout=FIRMWARE_TIMEOUT_S, capture_output=True, text=True)
+    except subprocess.TimeoutExpired:
+        raise TransferError(f"the firmware did not answer within {FIRMWARE_TIMEOUT_S:.0f} s of the update") from None
+    print(result.stdout + result.stderr, end="", flush=True)
+    match = re.search(r"\bgit=([0-9a-f]{8})\b", result.stdout)
+    if result.returncode == 0 and match:
+        if match.group(1) != commit:
+            raise TransferError(f"the firmware that booted is {match.group(1)}, not the image's {commit}")
+        print(f"The firmware that booted is {commit}, the image written", flush=True)
+        return
+    if "no firmware_info" in result.stderr:
+        print("warning: the firmware sends no firmware_info, so which image booted is not checked", flush=True)
+        return
+    raise TransferError("no Link answered after the update; the firmware may not have booted")
+
+
 def run_uploader(args: argparse.Namespace, apj: Path) -> None:
     """Runs uploader.py with the .apj until it exits."""
     command = [sys.executable, "-u", str(RUN_UPLOADER), str(args.uploader), "--port", args.port, "--no-extf",
@@ -349,6 +392,13 @@ def cmd_update(args: argparse.Namespace, build: Build) -> None:
             raise TransferError(f"no bootloader answered within {UPLOAD_TIMEOUT_S:.0f} s")
     print(f"Writing {apj} through the bootloader; parameters are kept", flush=True)
     run_uploader(args, apj)
+    if args.no_verify:
+        return
+    commit = image_commit(apj)
+    if commit is None:
+        print(f"warning: {apj} names no commit, so which image booted is not checked", flush=True)
+        return
+    verify_firmware(args, build, commit)
 
 
 def cmd_new_board(args: argparse.Namespace, build: Build, flasher: Stm32Flash) -> None:
@@ -398,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
         "update", help="write vehkernel.apj through the Vehkernel bootloader; parameters are kept"
     )
     update_cmd.add_argument("--image", type=Path, help="the .apj image to write instead of the build's vehkernel.apj")
+    update_cmd.add_argument("--no-verify", action="store_true",
+                            help="skip checking that the firmware which boots is the image written")
     new_board = commands.add_parser("new-board", help="back up the whole chip, erase it and write the bootloader "
                                                       "and the firmware; parameters start empty")
     new_board.add_argument("--backup", type=Path, help="backup file (default <board>_flash_<time>.bin)")

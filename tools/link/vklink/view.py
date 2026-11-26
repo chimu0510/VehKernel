@@ -9,6 +9,7 @@ from .monitor import (
     actuator_outputs_line,
     body_velocity_measurement_line,
     euler_degrees,
+    firmware_info_line,
     gamepad_line,
     local_menu_line,
     magnetometer_status_line,
@@ -21,7 +22,7 @@ from .monitor import (
 # Topics shown in their own lines or tables rather than by their raw values.
 STATUS_TOPICS = ("link_status", "work_item_status", "parameter_status", "vehicle_status", "wheel_encoders",
                  "actuator_outputs", "local_menu", "body_velocity_measurement", "vehicle_local_odometry",
-                 "manual_control_input", "magnetometer_status")
+                 "manual_control_input", "magnetometer_status", "firmware_info")
 
 
 def format_value(value: object) -> str:
@@ -67,6 +68,8 @@ def render(monitor: LinkMonitor, target: str, width: int = 120) -> list[str]:
             f"crc_errors {status.crc_errors}  malformed {status.malformed}  lost {status.lost}  "
             f"{HANDSHAKE_STATES.get(status.handshake_state, '?')}"
         )
+    for _, info in monitor.latest("firmware_info"):
+        lines.append("firmware       " + firmware_info_line(info).removeprefix("firmware "))
     for _, status in monitor.latest("parameter_status"):
         skipped_at_boot = (status.skipped_unknown + status.skipped_wrong_type
                            + status.skipped_out_of_range + status.skipped_corrupt)

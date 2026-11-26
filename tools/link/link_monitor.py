@@ -62,6 +62,7 @@ import math
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -80,6 +81,7 @@ from vklink.monitor import (  # noqa: E402
     MagnetometerRead,
     WorkItemOverruns,
     find_matching_build_trees,
+    firmware_info_line,
     format_build_tree_hint,
     gamepad_line,
     local_menu_line,
@@ -425,6 +427,25 @@ def run_mag_read(monitor: LinkMonitor, args: argparse.Namespace) -> int:
     return 0
 
 
+def run_firmware(monitor: LinkMonitor, args: argparse.Namespace) -> int:
+    """Prints the firmware's identity once (ADR-0023); fails when none arrives in time."""
+    infos: list[object] = []
+
+    def on_topic(name: str, _instance: int, message: object) -> None:
+        if name == "firmware_info":
+            infos.append(message)
+
+    monitor.listeners.append(on_topic)
+    deadline = time.monotonic() + args.wait
+    while not infos and time.monotonic() < deadline:
+        monitor.run(0.1)
+    if not infos:
+        print(f"FAIL: no firmware_info in {args.wait:g} s; the firmware may predate it", file=sys.stderr)
+        return 1
+    print(firmware_info_line(infos[0]))
+    return 0
+
+
 def main() -> int:
     bundle = bundle_root(Path(__file__))
     if "VK_MSG_PYTHON_DIR" in os.environ:
@@ -509,6 +530,9 @@ def main() -> int:
                             metavar="SECONDS", help="seconds to send the setpoints")
     drive_body.add_argument("--mode", dest="drive_mode", choices=("test", "companion"), default="test",
                             help="the mode to request (default test)")
+    firmware = commands.add_parser("firmware", help="print the firmware's version, commit and board once")
+    firmware.add_argument("--wait", type=parse_duration, default=3.0, metavar="SECONDS",
+                          help="seconds to wait for firmware_info, sent once a second (default 3)")
     mag_read = commands.add_parser("mag-read", help="average the magnetometer at one heading and print it once")
     mag_read.add_argument("--duration", dest="read_duration", type=parse_duration, default=2.0, metavar="SECONDS",
                           help="seconds to average (default 2)")
@@ -552,6 +576,8 @@ def main() -> int:
         if monitor.session.version < PROTOCOL_VERSION:
             print(f"warning: the MCU speaks protocol version {monitor.session.version}, older than the host's "
                   f"{PROTOCOL_VERSION}; newer requests are refused", file=sys.stderr)
+        if args.command == "firmware":
+            return run_firmware(monitor, args)
         if args.command == "mag-read":
             return run_mag_read(monitor, args)
         if args.command == "param":
