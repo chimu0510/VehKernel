@@ -72,6 +72,8 @@ public:
 
     [[nodiscard]] MenuState state() const { return state_; }
     [[nodiscard]] Page page() const { return page_; }
+    // The first line shown on the arming checks page: a click scrolls it a page at a time, then moves on.
+    [[nodiscard]] std::size_t arming_checks_scroll() const { return arming_checks_scroll_; }
     // Whether the key is down, from the last event: a press shows at once.
     [[nodiscard]] bool key_down() const { return key_down_; }
     // Whether "the menu needs the vehicle disarmed" is to be shown at `now_us`.
@@ -133,6 +135,7 @@ private:
     std::size_t group_count_ = 0;
     MenuState state_ = MenuState::Closed;
     Page page_ = Page::Overview;
+    std::size_t arming_checks_scroll_ = 0;
     std::size_t group_ = 0;
     std::size_t position_ = 0;
     MenuAction action_ = MenuAction::Increase;

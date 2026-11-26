@@ -2,6 +2,7 @@
 #include <vk/local_display/local_menu.hpp>
 
 #include <vk/local_display/icons.hpp>
+#include <vk/local_display/page_arming_checks.hpp>
 #include <vk/local_display/pages.hpp>
 
 #include <algorithm>
@@ -197,9 +198,15 @@ void LocalMenu::on_key(KeyEvent event, std::uint64_t now_us, bool armed)
     switch (state_) {
     case MenuState::Closed:
         if (event == KeyEvent::Click) {
-            page_ = next_page(page_);
+            if (page_ == Page::ArmingChecks && arming_checks_can_scroll(arming_checks_scroll_)) {
+                arming_checks_scroll_ = arming_checks_scrolled(arming_checks_scroll_);
+            } else {
+                page_ = next_page(page_);
+                arming_checks_scroll_ = 0;
+            }
         } else if (event == KeyEvent::Long) {
             page_ = Page::Overview;
+            arming_checks_scroll_ = 0;
         } else if (event == KeyEvent::Double) {
             if (armed || group_count_ == 0) {
                 notice_until_us_ = now_us + notice_us;

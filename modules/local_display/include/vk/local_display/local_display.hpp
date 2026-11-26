@@ -6,7 +6,11 @@
 // that changed in the same run, so a key press is on the panel within one run
 // and never half drawn. It subscribes only to what the pages and the status
 // bar show: vehicle_status, vehicle_attitude, vehicle_local_odometry,
-// wheel_encoders, actuator_outputs, link_status and manual_control_input.
+// wheel_encoders, actuator_outputs, link_status, manual_control_input,
+// arming_checks, imu_sample (only to measure its rate), magnetometer_status
+// and magnetometer_sample, firmware_info, parameter_status and the 16
+// instances of work_item_status. All are read on the 200 ms tick, a few
+// copies of small messages, so a run stays far below its budget.
 // They are taken at most every 200 ms, every 100 ms while the attitude page
 // shows, so values change at most 5 Hz, the horizon 10 Hz, and stay
 // readable. A run that changes nothing writes nothing; a full screen costs
@@ -22,29 +26,61 @@
 #include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/local_menu.hpp>
 #include <vk/local_display/pages.hpp>
+#include <vk/local_display/page_remote_control.hpp>
+#include <vk/local_display/page_sensors.hpp>
 #include <vk/msg/actuator_outputs.hpp>
+#include <vk/msg/arming_checks.hpp>
+#include <vk/msg/firmware_info.hpp>
+#include <vk/msg/imu_sample.hpp>
 #include <vk/msg/link_status.hpp>
+#include <vk/msg/magnetometer_sample.hpp>
+#include <vk/msg/magnetometer_status.hpp>
 #include <vk/msg/manual_control_input.hpp>
+#include <vk/msg/parameter_status.hpp>
 #include <vk/msg/vehicle_attitude.hpp>
 #include <vk/msg/vehicle_local_odometry.hpp>
 #include <vk/msg/vehicle_status.hpp>
 #include <vk/msg/wheel_encoders.hpp>
+#include <vk/msg/work_item_status.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <string_view>
+#include <utility>
 
 namespace vk::local_display {
+
+namespace detail {
+
+// One subscription to each instance of work_item_status.
+template <std::size_t... Instance>
+std::array<core::Subscription<msg::WorkItemStatus>, sizeof...(Instance)> work_item_subscriptions(
+    std::index_sequence<Instance...> /*instances*/)
+{
+    return {core::Subscription<msg::WorkItemStatus>{Instance}...};
+}
+
+}  // namespace detail
+
+// What the pages show that no topic carries: the board's name, and the port of each Link.
+struct Identity {
+    std::string_view board_name;
+    std::array<std::string_view, msg::LinkStatus::instances> port_names{"SERIAL1", "SERIAL2"};
+};
 
 class LocalDisplay final : public core::WorkItem {
 public:
     static constexpr std::uint32_t interval_us = 50'000;        // how soon a key press shows
     static constexpr std::uint64_t topic_interval_us = 200'000;  // values change at most 5 Hz (ADR-0022)
     static constexpr std::uint64_t attitude_interval_us = 100'000;  // the attitude page, 10 Hz
-    static constexpr std::uint64_t manual_timeout_us = 1'000'000;  // the remote control is lost after this silence
+    static constexpr std::uint64_t manual_timeout_us = remote_control_timeout_us;  // the remote control is lost after this silence
+    static constexpr std::uint64_t magnetometer_timeout_us = 1'000'000;  // a magnetometer sample older than this is not shown
+    static constexpr std::size_t imu_reads_per_tick = 8;  // imu_sample's queue is shorter
 
     // `menu`, if any, and `protection`, which the menu task may share, must run on the same work queue.
     LocalDisplay(drivers::Ssd1306& display, const LocalMenu* menu, DisplayProtection& protection,
-                 core::WorkQueue& queue);
+                 core::WorkQueue& queue, Identity identity = {});
 
     // Starts the periodic runs.
     void start();
@@ -64,9 +100,20 @@ private:
     core::Subscription<msg::ManualControlInput> manual_{0};
     std::array<core::Subscription<msg::LinkStatus>, msg::LinkStatus::instances> links_{
         core::Subscription<msg::LinkStatus>{0}, core::Subscription<msg::LinkStatus>{1}};
+    core::Subscription<msg::ArmingChecks> arming_checks_{0};
+    core::Subscription<msg::ImuSample> imu_{0};
+    core::Subscription<msg::MagnetometerStatus> magnetometer_status_{0};
+    core::Subscription<msg::MagnetometerSample> magnetometer_sample_{0};
+    core::Subscription<msg::FirmwareInfo> firmware_{0};
+    core::Subscription<msg::ParameterStatus> parameters_{0};
+    std::array<core::Subscription<msg::WorkItemStatus>, msg::WorkItemStatus::instances> work_items_ =
+        detail::work_item_subscriptions(std::make_index_sequence<msg::WorkItemStatus::instances>{});
+    SampleRateMeter imu_rate_;
+    std::uint64_t imu_read_ = 0;
     Inputs inputs_;
     std::uint64_t next_topics_us_ = 0;
     std::uint64_t manual_seen_us_ = 0;
+    std::uint64_t magnetometer_seen_us_ = 0;
 };
 
 }  // namespace vk::local_display

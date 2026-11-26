@@ -451,7 +451,8 @@ void start_local_display()
 #endif
     display_bus.init();
     display_driver.emplace(vk::hal::DisplayDevice(display_bus));
-    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
+    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow),
+                           vk::local_display::Identity{.board_name = vk::board::name});
     local_display->start();
 }
 #endif

@@ -9,6 +9,9 @@ target_link_libraries(vk_unit_tests PRIVATE GTest::gtest_main vk_hal vk_msg vk_d
 target_compile_definitions(vk_unit_tests PRIVATE VK_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden/local_display"
   VK_GRAPHICS_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden/graphics"
   VK_MENU_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden/local_menu")
+# The arming checks, sensors, Links, remote control and system pages (spec 0016).
+target_sources(vk_unit_tests PRIVATE local_display_pages_test.cpp)
+target_compile_definitions(vk_unit_tests PRIVATE VK_PAGES_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden/pages")
 # Hardware-free logic of the STM32F4 platform layer, tested on the host.
 target_include_directories(vk_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/platform/stm32f4/include)
 gtest_discover_tests(vk_unit_tests)

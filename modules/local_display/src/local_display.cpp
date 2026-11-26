@@ -2,6 +2,7 @@
 #include <vk/local_display/local_display.hpp>
 
 #include <vk/local_display/graphics.hpp>
+#include <vk/local_display/page_sensors.hpp>
 #include <vk/local_display/status_bar.hpp>
 #include <vk/msg/enums.hpp>
 #include <vk/params/params.hpp>
@@ -42,9 +43,11 @@ WheelFrame wheel_frame()
 }  // namespace
 
 LocalDisplay::LocalDisplay(drivers::Ssd1306& display, const LocalMenu* menu, DisplayProtection& protection,
-                           core::WorkQueue& queue)
+                           core::WorkQueue& queue, Identity identity)
     : core::WorkItem("local_display", queue), display_(display), menu_(menu), protection_(protection)
 {
+    inputs_.board_name = identity.board_name;
+    inputs_.port_names = identity.port_names;
 }
 
 void LocalDisplay::start()
@@ -55,6 +58,8 @@ void LocalDisplay::start()
 void LocalDisplay::run()
 {
     const std::uint64_t now = queue().now_us();
+    inputs_.uptime_us = now;
+    inputs_.arming_checks_scroll = menu_ != nullptr ? menu_->arming_checks_scroll() : 0;
     const Page page = menu_ != nullptr ? menu_->page() : Page::Overview;
     if (now >= next_topics_us_) {
         msg::VehicleStatus status{};
@@ -69,6 +74,7 @@ void LocalDisplay::run()
         msg::ManualControlInput manual{};
         while (manual_.copy(manual)) {
             inputs_.manual = manual;
+            inputs_.manual_last = manual;
             manual_seen_us_ = now;
         }
         // The remote control publishes at least 20 times a second while it is connected.
@@ -76,6 +82,33 @@ void LocalDisplay::run()
             inputs_.manual.reset();
         }
         inputs_.frame = wheel_frame();
+        take(arming_checks_, inputs_.arming_checks);
+        take(magnetometer_status_, inputs_.magnetometer_status);
+        msg::MagnetometerSample sample{};
+        while (magnetometer_sample_.copy(sample)) {
+            inputs_.magnetometer_sample = sample;
+            magnetometer_seen_us_ = now;
+        }
+        if (inputs_.magnetometer_sample && now - magnetometer_seen_us_ > magnetometer_timeout_us) {
+            inputs_.magnetometer_sample.reset();
+        }
+        inputs_.magnetometer_calibration_applied = magnetometer_calibration_applied(params::cal);
+        take(firmware_, inputs_.firmware);
+        take(parameters_, inputs_.parameters);
+        for (std::size_t instance = 0; instance < work_items_.size(); ++instance) {
+            take(work_items_.at(instance), inputs_.work_items.at(instance));
+        }
+        // imu_sample is a short queue: the rate comes from how many were published, not read.
+        msg::ImuSample imu{};
+        bool imu_read = false;
+        for (std::size_t read = 0; read < imu_reads_per_tick && imu_.copy(imu); ++read) {
+            ++imu_read_;
+            imu_read = true;
+        }
+        if (imu_read) {
+            imu_rate_.add(imu.timestamp, imu_read_ + imu_.missed());
+            inputs_.imu_rate_hz = imu_rate_.rate_hz();
+        }
         for (std::size_t instance = 0; instance < links_.size(); ++instance) {
             take(links_.at(instance), inputs_.links.at(instance));
         }

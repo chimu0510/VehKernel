@@ -473,7 +473,8 @@ void start_local_display(const Options& options)
     menu = &local_menu->menu();
 #endif
     display_driver.emplace(vk::hal::DisplayDevice(vk::platform::display()));
-    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
+    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow),
+                           vk::local_display::Identity{.board_name = "sitl"});
     local_display->start();
 }
 #endif

@@ -101,6 +101,11 @@ if(CONFIG_LOCAL_DISPLAY)
     local_display/src/font.cpp
     local_display/src/graphics.cpp
     local_display/src/icons.cpp
+    local_display/src/page_arming_checks.cpp
+    local_display/src/page_links.cpp
+    local_display/src/page_remote_control.cpp
+    local_display/src/page_sensors.cpp
+    local_display/src/page_system.cpp
     local_display/src/local_display.cpp
     local_display/src/local_menu.cpp
     local_display/src/page_attitude.cpp

@@ -14,6 +14,7 @@
 #include <vk/hal/display_bus.hpp>
 #include <vk/local_display/graphics.hpp>
 #include <vk/local_display/local_menu.hpp>
+#include <vk/local_display/page_arming_checks.hpp>
 #include <vk/local_display/pages.hpp>
 #include <vk/local_display/status_bar.hpp>
 #include <vk/local_display/user_key.hpp>
@@ -361,6 +362,12 @@ TEST_F(LocalMenuTest, ClosedAClickSwitchesPagesAndALongPressReturnsToTheFirst)
     EXPECT_EQ(menu.page(), Page::Overview);
     for (const Page page : {Page::Attitude, Page::Motion, Page::ArmingChecks, Page::Sensors, Page::Links,
                             Page::RemoteControl, Page::System, Page::Overview}) {
+        if (menu.page() == Page::ArmingChecks) {
+            // The arming checks page scrolls first (the next test), then a click moves on.
+            while (vk::local_display::arming_checks_can_scroll(menu.arming_checks_scroll())) {
+                click();
+            }
+        }
         click();
         EXPECT_EQ(menu.page(), page);
     }
@@ -368,6 +375,33 @@ TEST_F(LocalMenuTest, ClosedAClickSwitchesPagesAndALongPressReturnsToTheFirst)
     hold();
     EXPECT_EQ(menu.page(), Page::Overview);
     EXPECT_EQ(menu.state(), MenuState::Closed);
+}
+
+TEST_F(LocalMenuTest, AClickOnTheArmingChecksScrollsAPageAtATimeThenMovesOn)
+{
+    click(3);
+    ASSERT_EQ(menu.page(), Page::ArmingChecks);
+    EXPECT_EQ(menu.arming_checks_scroll(), 0U);
+    std::size_t scroll = 0;
+    while (vk::local_display::arming_checks_can_scroll(scroll)) {
+        scroll = vk::local_display::arming_checks_scrolled(scroll);
+        click();
+        EXPECT_EQ(menu.page(), Page::ArmingChecks);
+        EXPECT_EQ(menu.arming_checks_scroll(), scroll);
+    }
+    EXPECT_EQ(scroll, vk::local_display::arming_checks_max_scroll());
+    click();
+    EXPECT_EQ(menu.page(), Page::Sensors);
+    EXPECT_EQ(menu.arming_checks_scroll(), 0U);
+}
+
+TEST_F(LocalMenuTest, ALongPressOnAScrolledArmingChecksPageReturnsToTheOverviewAndTheFirstLine)
+{
+    click(4);  // the arming checks page, one page down
+    hold();
+    EXPECT_EQ(menu.page(), Page::Overview);
+    click(3);
+    EXPECT_EQ(menu.arming_checks_scroll(), 0U);
 }
 
 TEST_F(LocalMenuTest, ADoubleClickOnAPageOpensTheGroupList)

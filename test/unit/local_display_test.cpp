@@ -16,6 +16,8 @@
 #include <vk/local_display/graphics.hpp>
 #include <vk/local_display/local_display.hpp>
 #include <vk/local_display/local_menu.hpp>
+#include <vk/local_display/page_arming_checks.hpp>
+#include <vk/local_display/page_remote_control.hpp>
 #include <vk/local_display/pages.hpp>
 #include <vk/local_display/status_bar.hpp>
 #include <vk/local_display/text_buffer.hpp>
@@ -363,12 +365,55 @@ TEST(LocalDisplayImages, MotionWithoutAKnownFrame)
     expect_golden("motion_no_frame", page_image(Page::Motion, inputs));
 }
 
-class LocalDisplayPlaceholders : public ::testing::TestWithParam<Page> {};
+// Pages 4 to 8 with a status bar, from fixed topics: what render() draws, against reference images.
+Inputs pages_inputs()
+{
+    using R = vk::msg::ArmingResult;
+    Inputs inputs = sample_inputs();
+    vk::msg::ArmingChecks checks{};
+    checks.failing = (1U << static_cast<unsigned>(R::EmergencyStop)) | (1U << static_cast<unsigned>(R::RcNotConnected));
+    checks.skipped = 1U << static_cast<unsigned>(R::ActuatorPowerOff);
+    inputs.arming_checks = checks;
+    inputs.imu_rate_hz = 1000.0F;
+    vk::msg::MagnetometerStatus mag{};
+    mag.state = static_cast<std::uint8_t>(vk::msg::MagnetometerState::Running);
+    mag.samples = 4321;
+    inputs.magnetometer_status = mag;
+    vk::msg::MagnetometerSample sample{};
+    sample.field = {20.0F, -10.0F, 40.5F};
+    inputs.magnetometer_sample = sample;
+    vk::msg::ManualControlInput manual{};
+    manual.connected = true;
+    manual.sticks = {0.5F, -0.5F, 0.0F, 1.0F};
+    manual.triggers = {0.25F, 0.0F};
+    manual.buttons = 1U << static_cast<unsigned>(vk::msg::GamepadButton::A);
+    inputs.manual = manual;
+    inputs.manual_last = manual;
+    vk::msg::FirmwareInfo firmware{};
+    firmware.version_minor = 3;
+    firmware.git_hash = 0x1A2B3C4DU;
+    firmware.board_id = 22083;
+    inputs.firmware = firmware;
+    vk::msg::ParameterStatus parameters{};
+    parameters.parameter_count = 87;
+    parameters.bytes_used = 1536;
+    parameters.sector_size = 16384;
+    inputs.parameters = parameters;
+    vk::msg::WorkItemStatus item{};
+    item.name = {'l', 'o', 'c', 'a', 'l', '_', 'd', 'i', 's', 'p', 'l', 'a', 'y'};
+    item.run_time_max_us = 6800;
+    inputs.work_items.at(1) = item;
+    inputs.uptime_us = 3'725'000'000ULL;
+    inputs.board_name = "c50c-v1_1";
+    return inputs;
+}
 
-TEST_P(LocalDisplayPlaceholders, ShowThePageNameAndTheirPageDot)
+class LocalDisplayWiredPages : public ::testing::TestWithParam<Page> {};
+
+TEST_P(LocalDisplayWiredPages, RenderDrawsThePageUnderTheStatusBar)
 {
     const Page page = GetParam();
-    expect_golden("placeholder_" + std::to_string(static_cast<int>(page)), page_image(page, sample_inputs()));
+    expect_golden("wired_" + std::to_string(static_cast<int>(page)), page_image(page, pages_inputs()));
 }
 
 std::string page_test_name(const ::testing::TestParamInfo<Page>& info)
@@ -378,10 +423,25 @@ std::string page_test_name(const ::testing::TestParamInfo<Page>& info)
     return std::string(names.at(static_cast<std::size_t>(info.param)));
 }
 
-INSTANTIATE_TEST_SUITE_P(Pages, LocalDisplayPlaceholders,
+INSTANTIATE_TEST_SUITE_P(Pages, LocalDisplayWiredPages,
                          ::testing::Values(Page::ArmingChecks, Page::Sensors, Page::Links, Page::RemoteControl,
                                            Page::System),
                          page_test_name);
+
+TEST(LocalDisplayWiredPages, ARemoteControlSilentForTooLongIsLost)
+{
+    vk::msg::ManualControlInput manual{};
+    manual.connected = true;
+    manual.timestamp = 2'000'000;
+    Inputs inputs = pages_inputs();
+    inputs.manual.reset();  // the display drops it after the timeout; the page keeps the last one
+    inputs.uptime_us = manual.timestamp + vk::local_display::remote_control_timeout_us + 5'000'000;
+    inputs.manual_last = manual;
+    const std::string silent = page_image(Page::RemoteControl, inputs);
+    manual.connected = false;
+    inputs.manual_last = manual;
+    EXPECT_EQ(silent, page_image(Page::RemoteControl, inputs));
+}
 
 // ---------------------------------------------------------------------------
 // The work item on a fake clock, fed the sample topics.
@@ -482,11 +542,117 @@ protected:
     vk::core::Publication<vk::msg::WheelEncoders> encoders{0};
     vk::core::Publication<vk::msg::ActuatorOutputs> outputs{0};
     vk::core::Publication<vk::msg::LinkStatus> link{0};
+    vk::core::Publication<vk::msg::ArmingChecks> arming_checks{0};
+    vk::core::Publication<vk::msg::ImuSample> imu{0};
+    vk::core::Publication<vk::msg::FirmwareInfo> firmware{0};
+    vk::core::Publication<vk::msg::ParameterStatus> parameters{0};
+    vk::core::Publication<vk::msg::WorkItemStatus> work_item{1};
+
+    void click(int times = 1)
+    {
+        for (int i = 0; i < times; ++i) {
+            menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);
+        }
+    }
+
+    // Clicks until `page` shows (the arming checks page takes more than one click to pass).
+    void go_to(Page page)
+    {
+        for (int clicks = 0; menu.page() != page && clicks < 20; ++clicks) {
+            click();
+        }
+    }
+
+    // The inputs the work item holds in these tests, before the topic a test publishes.
+    Inputs held_inputs()
+    {
+        Inputs inputs = sample_inputs();
+        inputs.links.at(1).reset();  // only the first Link is published here
+        inputs.frame = display_frame();
+        return inputs;
+    }
 };
 
 TEST_F(LocalDisplayWorkItemTest, TheDisplayStartsOnTheOverview)
 {
     EXPECT_EQ(panel.pbm(), expected_image(Page::Overview));
+}
+
+TEST_F(LocalDisplayWorkItemTest, AClickOnTheArmingChecksScrollsThenMovesOn)
+{
+    vk::msg::ArmingChecks checks{};
+    checks.failing = 1U << 2U;
+    checks.skipped = 1U << 7U;
+    arming_checks.publish(checks);
+    click(3);
+    step(400'000);
+    Inputs inputs = held_inputs();
+    inputs.arming_checks = checks;
+    EXPECT_EQ(menu.page(), Page::ArmingChecks);
+    EXPECT_EQ(panel.pbm(), page_image(Page::ArmingChecks, inputs));
+    std::size_t scroll = 0;
+    while (vk::local_display::arming_checks_can_scroll(scroll)) {
+        scroll = vk::local_display::arming_checks_scrolled(scroll);
+        click();
+        step(LocalDisplay::interval_us);
+        inputs.arming_checks_scroll = scroll;
+        EXPECT_EQ(menu.page(), Page::ArmingChecks);
+        EXPECT_EQ(panel.pbm(), page_image(Page::ArmingChecks, inputs));
+    }
+    EXPECT_GT(scroll, 0U);
+    click();
+    step(LocalDisplay::interval_us);
+    EXPECT_EQ(menu.page(), Page::Sensors);
+    EXPECT_EQ(menu.arming_checks_scroll(), 0U);
+}
+
+TEST_F(LocalDisplayWorkItemTest, TheSensorsPageShowsTheImuRateMeasuredFromTheSamples)
+{
+    go_to(Page::Sensors);
+    // 1 kHz in samples, 50 per run, more than the queue holds: the rate counts the missed ones too.
+    std::uint64_t sample_us = fake_now;
+    for (int run = 0; run < 60; ++run) {
+        for (int i = 0; i < 50; ++i) {
+            vk::msg::ImuSample sample{};
+            sample.timestamp = sample_us;
+            sample_us += 1000;
+            imu.publish(sample);
+        }
+        step(LocalDisplay::interval_us);
+    }
+    Inputs inputs = held_inputs();
+    inputs.imu_rate_hz = 1000.0F;
+    inputs.uptime_us = fake_now;
+    EXPECT_EQ(menu.page(), Page::Sensors);
+    EXPECT_EQ(panel.pbm(), page_image(Page::Sensors, inputs));
+}
+
+TEST_F(LocalDisplayWorkItemTest, TheSystemPageShowsFirmwareParametersAndTheWorkItemWithTheLongestRun)
+{
+    vk::msg::FirmwareInfo info{};
+    info.version_minor = 3;
+    info.git_hash = 0xCAFE0001U;
+    info.git_dirty = true;
+    info.board_id = 22083;
+    firmware.publish(info);
+    vk::msg::ParameterStatus parameter_status{};
+    parameter_status.parameter_count = 90;
+    parameter_status.bytes_used = 4096;
+    parameter_status.sector_size = 16384;
+    parameters.publish(parameter_status);
+    vk::msg::WorkItemStatus item{};
+    item.name = {'s', 'l', 'o', 'w'};
+    item.run_time_max_us = 2500;
+    work_item.publish(item);
+    go_to(Page::System);
+    step(400'000);
+    Inputs inputs = held_inputs();
+    inputs.firmware = info;
+    inputs.parameters = parameter_status;
+    inputs.work_items.at(1) = item;
+    inputs.uptime_us = fake_now;
+    EXPECT_EQ(menu.page(), Page::System);
+    EXPECT_EQ(panel.pbm(), page_image(Page::System, inputs));
 }
 
 TEST_F(LocalDisplayWorkItemTest, AKeyPressIsWhollyOnThePanelAfterOneRun)
