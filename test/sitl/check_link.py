@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -120,6 +121,11 @@ def main() -> int:
         for entry in filter(None, judged.get("overran", "").split(",")):
             name, count = entry.split(":")
             failures.append(f"work item {name} overran {count} times during the check, not in a host stall")
+    # The firmware's identity rides on the timing monitor once a second (ADR-0023).
+    firmware = next((line for line in monitor.stdout.splitlines() if line.startswith("firmware ")), None)
+    if firmware is None or re.search(r"version=\d+\.\d+\.\d+ git=[0-9a-f]{8} dirty=[01] board_id=0\b",
+                                      firmware) is None:
+        failures.append(f"the Link monitor showed no firmware identity for SITL: {firmware!r}")
     # A transport without a baud rate, UDP or a pty, is never scaled (ADR-0002).
     scales = [line.split("rate_scale=")[1].split()[0] for line in monitor.stdout.splitlines()
               if line.startswith("mcu_link ") and "rate_scale=" in line]

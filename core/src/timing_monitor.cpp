@@ -1,13 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <vk/core/timing_monitor.hpp>
 
+#include <vk/core/firmware_info.hpp>
+#include <vk/msg/firmware_info.hpp>
 #include <vk/msg/work_item_status.hpp>
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace vk::core {
+
+namespace {
+std::optional<msg::FirmwareInfo> identity;  // set once, before the scheduler starts
+}  // namespace
+
+void set_firmware_info(const msg::FirmwareInfo& info)
+{
+    identity = info;
+}
+
+std::optional<msg::FirmwareInfo> firmware_info()
+{
+    return identity;
+}
 
 static_assert(max_work_items <= msg::WorkItemStatus::instances,
               "every work item needs its own work_item_status instance");
@@ -40,6 +57,13 @@ void TimingMonitor::publish_all()
         status.jitter_max_us = stats.jitter_max_us;
         status.periodic = stats.periodic;
         topic<msg::WorkItemStatus>(item->index()).publish(status);
+    }
+    // The firmware's identity rides along at the same rate (ADR-0023), so it
+    // needs no work item of its own.
+    if (identity.has_value()) {
+        msg::FirmwareInfo info = *identity;
+        info.timestamp = now;
+        topic<msg::FirmwareInfo>(0).publish(info);
     }
 }
 

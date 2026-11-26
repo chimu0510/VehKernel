@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.25)
 # The firmware version, carried by the app descriptor and the .apj file (ADR-0023).
-project(Vehkernel VERSION 0.1.0 LANGUAGES C CXX ASM)
+project(Vehkernel VERSION 0.2.0 LANGUAGES C CXX ASM)
 
 set(VK_PLATFORM "" CACHE STRING "Platform layer to build: stm32f4 or sitl")
 set_property(CACHE VK_PLATFORM PROPERTY STRINGS stm32f4 sitl)
@@ -29,6 +29,7 @@ include(VehkernelKconfig)
 include(VehkernelSchema)
 include(VehkernelParams)
 include(VehkernelFirmware)
+include(VehkernelGitIdentity)
 
 # Warnings are errors for all Vehkernel code (L0, ADR-0018).
 add_library(vk_warnings INTERFACE)

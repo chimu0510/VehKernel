@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The timing monitor (ADR-0015): publishes every work item's timing
-// statistics on the work_item_status topic, one instance per work item.
+// statistics on the work_item_status topic, one instance per work item, and
+// the firmware's identity on firmware_info (ADR-0023), once a second.
 #pragma once
 
 #include <vk/core/work_queue.hpp>
@@ -21,7 +22,7 @@ public:
     TimingMonitor& operator=(TimingMonitor&&) = delete;
     ~TimingMonitor() override = default;
 
-    // Publishes the statistics of every work item now.
+    // Publishes the statistics of every work item, and the firmware's identity once set, now.
     void publish_all();
 
 protected:

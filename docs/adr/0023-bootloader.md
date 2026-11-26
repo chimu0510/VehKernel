@@ -8,6 +8,11 @@ Flight controllers that ArduPilot and PX4 support ship with a bootloader that sp
 - Every firmware image carries an **app descriptor** in ArduPilot's layout (`AP_CheckFirmware`): CRCs of the image, its size, the git hash, the version and the board ID. ArduPilot's bootloader and the Vehkernel bootloader check it before starting the firmware; PX4's bootloader does not.
 - A build also produces an `.apj` file, the JSON firmware file ArduPilot's tools read: the board ID, the compressed image, its size, the largest image the board takes and the git identity. A board that uses the Vehkernel bootloader also gets a `_with_bl.hex` holding the bootloader and the firmware, for its first installation.
 
+**Firmware version and identity**
+
+- The version is `major.minor.patch`, set once in `project(Vehkernel VERSION ...)` in the top-level `CMakeLists.txt`. Before 1.0, the minor version rises when a spec is done, the patch version for a fix released between specs, and the patch returns to 0 with each minor. The app descriptor holds the major and minor versions, as ArduPilot's layout does; the patch, and whether the build tree had changes not committed (dirty), come from the build.
+- The running firmware reports its identity on the `firmware_info` topic once a second: the version, the git hash read from its own app descriptor, the dirty flag and the board ID. So a host knows which firmware a board runs without reading its Flash, and the serial flasher checks, after an update, that the firmware which boots is the image it wrote. The descriptor's reserved bytes stay unused, so ArduPilot's tools read it as their own.
+
 **Board ID**
 
 - The board definition declares the board ID (ADR-0011). The board generator rejects two board definitions with the same ID.

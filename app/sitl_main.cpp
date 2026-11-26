@@ -43,6 +43,7 @@
 // powered on; whoever starts it again after a reset gives the reset cause
 // with --reset-cause, such as watchdog or fault:assert, as the board would
 // read it at boot.
+#include <vk_git_identity.hpp>
 #include <vk/config.h>
 
 #ifdef CONFIG_ACTUATOR_CONTROL
@@ -50,6 +51,7 @@
 #endif
 #include <vk/commander/commander_task.hpp>
 #include <vk/remote_control/remote_control_task.hpp>
+#include <vk/core/firmware_info.hpp>
 #include <vk/core/bus.hpp>
 #include <vk/core/fault.hpp>
 #include <vk/core/scheduler.hpp>
@@ -556,7 +558,7 @@ bool start_link(const Options& options)
                                                             .board_id = 0,
                                                             .version_major = VK_VERSION_MAJOR,
                                                             .version_minor = VK_VERSION_MINOR,
-                                                            .git_hash = 0}},
+                                                            .git_hash = vk::build::git_hash}},
                       vk::core::work_queue(vk::core::WorkQueueTier::Io));
     host_link->start();
     return true;
@@ -690,6 +692,13 @@ int main(int argc, char** argv)
     if (options.duration_s > 0.0) {
         vk::platform::stop_after(static_cast<std::uint64_t>(options.duration_s * 1e6));
     }
+    // SITL has no app descriptor: its identity comes from the build (ADR-0023).
+    vk::core::set_firmware_info({.version_major = VK_VERSION_MAJOR,
+                                 .version_minor = VK_VERSION_MINOR,
+                                 .version_patch = VK_VERSION_PATCH,
+                                 .git_hash = vk::build::git_hash,
+                                 .git_dirty = vk::build::git_dirty,
+                                 .board_id = 0});
     vk::core::start_scheduler();
     print_report(options.duration_s);
     return 0;

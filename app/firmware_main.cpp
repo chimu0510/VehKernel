@@ -2,9 +2,11 @@
 // Firmware entry point: bring up the platform, start the drivers on their
 // work queues, then hand over to FreeRTOS.
 #include <board.hpp>
+#include <vk_git_identity.hpp>
 #include <vk/config.h>
 #include <vk/core/app_descriptor.hpp>
 #include <vk/core/critical_section.hpp>
+#include <vk/core/firmware_info.hpp>
 #include <vk/core/scheduler.hpp>
 #include <vk/core/static_instance.hpp>
 #include <vk/core/work_queue.hpp>
@@ -460,6 +462,15 @@ int main()
     __asm__ volatile("" : : "r"(vk_flash_fill));
 #endif
     vk::platform::init();
+    // The identity firmware_info reports (ADR-0023): the version and the git hash
+    // from the app descriptor, which the bootloader checks; the patch and the
+    // dirty flag from the build.
+    vk::core::set_firmware_info({.version_major = vk::core::read_descriptor_field(vk::core::app_descriptor.version_major),
+                                 .version_minor = vk::core::read_descriptor_field(vk::core::app_descriptor.version_minor),
+                                 .version_patch = VK_VERSION_PATCH,
+                                 .git_hash = vk::core::read_descriptor_field(vk::core::app_descriptor.git_hash),
+                                 .git_dirty = vk::build::git_dirty,
+                                 .board_id = vk::core::read_descriptor_field(vk::core::app_descriptor.board_id)});
 #ifdef CONFIG_PARAM_STORAGE_FLASH
     start_parameters();
 #endif

@@ -3,8 +3,10 @@
 // (ADR-0008, ADR-0015). The queues run on a fake clock and are driven by
 // calling process(), as their task does when it wakes.
 #include <vk/core/bus.hpp>
+#include <vk/core/firmware_info.hpp>
 #include <vk/core/timing_monitor.hpp>
 #include <vk/core/work_queue.hpp>
+#include <vk/msg/firmware_info.hpp>
 #include <vk/msg/work_item_status.hpp>
 
 #include <gtest/gtest.h>
@@ -213,6 +215,33 @@ TEST_F(WorkQueueTest, TimingMonitorRunsOnItsPeriod)
     queue.process();
     ASSERT_TRUE(sub.copy(status));
     EXPECT_EQ(status.timestamp, fake_now);
+}
+
+TEST_F(WorkQueueTest, TimingMonitorPublishesTheFirmwareIdentityOnceSet)
+{
+    vk::core::set_firmware_info(vk::msg::FirmwareInfo{.version_major = 0,
+                                                      .version_minor = 2,
+                                                      .version_patch = 1,
+                                                      .git_hash = 0xf80f754fU,
+                                                      .git_dirty = true,
+                                                      .board_id = 22083});
+    vk::core::TimingMonitor monitor(queue);
+    Subscription<vk::msg::FirmwareInfo> sub;
+    vk::msg::FirmwareInfo info{};
+    while (sub.copy(info)) {
+    }
+    fake_now += 5000;
+    monitor.publish_all();
+    ASSERT_TRUE(sub.copy(info));
+    EXPECT_EQ(info.timestamp, fake_now);
+    EXPECT_EQ(info.version_minor, 2U);
+    EXPECT_EQ(info.version_patch, 1U);
+    EXPECT_EQ(info.git_hash, 0xf80f754fU);
+    EXPECT_TRUE(info.git_dirty);
+    EXPECT_EQ(info.board_id, 22083U);
+    const auto stored = vk::core::firmware_info();
+    ASSERT_TRUE(stored.has_value());
+    EXPECT_EQ(stored.value_or(vk::msg::FirmwareInfo{}).git_hash, 0xf80f754fU);
 }
 
 }  // namespace
