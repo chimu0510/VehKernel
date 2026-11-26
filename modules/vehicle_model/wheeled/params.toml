@@ -5,8 +5,7 @@
 # frame preset sets them, since the board does not know the vehicle it is in.
 prefix = "WHL"
 kconfig = "VEHICLE_MODEL_WHEELED"
-# The vehicle description never changes from the local menu (ADR-0022).
-menu = false
+# The wheel radius and the track are in the local menu (ADR-0022); the output mapping is not.
 
 [[param]]
 name = "WHL_RADIUS"
@@ -17,6 +16,9 @@ max = 1.0
 unit = "m"
 description = "Wheel radius."
 reboot_required = true
+menu = true
+menu_group = "VEHICLE"
+menu_step = 0.005
 
 [[param]]
 name = "WHL_TRACK"
@@ -27,6 +29,9 @@ max = 5.0
 unit = "m"
 description = "Track width: the distance between the left and right wheels' contact points."
 reboot_required = true
+menu = true
+menu_group = "VEHICLE"
+menu_step = 0.01
 
 [[param]]
 name = "WHL_LEFT_OUT"

@@ -45,8 +45,11 @@ LONG_S = 1.1        # past the 1 s long press, short of its first repeat
 SETTLE_S = 0.4      # for local_menu and the display (5 Hz) to follow
 IDLE_CLOSE_S = 30.0
 BOOT_S = 3.0        # board verified and actuator power settled
-# The menu parameters SITL compiles in, in table order, then Exit.
-POSITIONS = {"ATT_ACC_REJ": 0, "ATT_KI": 1, "ATT_KP": 2, "EKF_MAG_DECL": 3, "EKF_MAG_TYPE": 4, "SENS_BOARD_ROT": 5}
+# The menu parameters SITL compiles in, in the menu's order (by group), then Exit.
+NAMES = ["EST_PRIMARY", "ATT_KP", "ATT_KI", "ATT_ACC_REJ", "EKF_MAG_TYPE", "EKF_MAG_DECL", "MAN_VX_MAX",
+         "MAN_YAW_MAX", "MAN_DEADZONE", "WHL_RADIUS", "WHL_TRACK", "SENS_BOARD_ROT", "DSP_BRIGHT", "DSP_DIM_S",
+         "DSP_OFF_S", "DSP_SHIFT"]
+POSITIONS = {name: position for position, name in enumerate(NAMES)}
 # Actions in an edit, in the order a short press moves through them.
 ACTIONS = ["+", "-", "default", "save", "cancel"]
 MODE_TEST = 1

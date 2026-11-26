@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Parameters of the local display's protection (spec 0016, ADR-0022): the
+# brightness, when the display dims and turns off while disarmed, and the
+# pixel shift. They are in the local menu's DISPLAY group.
+prefix = "DSP"
+kconfig = "LOCAL_DISPLAY"
+
+[[param]]
+name = "DSP_BRIGHT"
+type = "INT32"
+default = 100
+min = 10
+max = 100
+unit = "%"
+description = "Display brightness: the contrast of the panel while it is awake."
+menu = true
+menu_group = "DISPLAY"
+menu_step = 10
+
+[[param]]
+name = "DSP_DIM_S"
+type = "INT32"
+default = 60
+min = 0
+max = 3600
+unit = "s"
+description = "Seconds without a key press, while disarmed, before the display dims. 0 never dims."
+menu = true
+menu_group = "DISPLAY"
+menu_step = 10
+
+[[param]]
+name = "DSP_OFF_S"
+type = "INT32"
+default = 600
+min = 0
+max = 3600
+unit = "s"
+description = "Seconds without a key press, while disarmed, before the display turns off. 0 never turns it off."
+menu = true
+menu_group = "DISPLAY"
+menu_step = 60
+
+[[param]]
+name = "DSP_SHIFT"
+type = "INT32"
+default = "ON"
+values = [
+  { name = "OFF", value = 0 },
+  { name = "ON", value = 1 },
+]
+description = "Move the image by one pixel every two minutes, against marking the panel."
+menu = true
+menu_group = "DISPLAY"

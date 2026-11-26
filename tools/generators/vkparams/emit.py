@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 
-from .params import Group, Param, all_params, metadata, set_hash
+from .params import Group, Param, all_params, menu_params, metadata, set_hash
 
 GENERATOR = "tools/generators/generate_params.py"
 
@@ -74,7 +74,7 @@ def params_header(groups: list[Group], params: list[Param]) -> str:
         "// The build's parameter runtime over table().",
         "core::Parameters& parameters();",
         "",
-        "// The parameters in the local menu, in table order (ADR-0022).",
+        "// The parameters in the local menu, by group in the menu's order (ADR-0022).",
         "std::span<const core::MenuParam> menu();",
         "",
         "}  // namespace vk::params",
@@ -104,7 +104,7 @@ def params_source(groups: list[Group], params: list[Param]) -> str:
             out.append(f"constexpr std::array<std::int32_t, {len(param.values)}> {_values_array(param)}{{{values}}};")
     if any(p.is_enum for p in params):
         out.append("")
-    menu = [(index, p) for index, p in enumerate(params) if p.menu]
+    menu = menu_params(params)
     # Enum value names only for menu parameters; every other parameter keeps
     # only what validation needs (ADR-0012).
     for _, param in menu:
@@ -143,7 +143,8 @@ def params_source(groups: list[Group], params: list[Param]) -> str:
     for index, param in menu:
         step = _value(param, param.menu_step) if param.menu_step is not None else "{}"
         names = _names_array(param) if param.is_enum else "{}"
-        out.append(f"    {{.index = {index}, .step = {step}, .value_names = {names}}},  // {param.name}")
+        out.append(f'    {{.index = {index}, .step = {step}, .value_names = {names}, .group = "{param.menu_group}"}},'
+                   f"  // {param.name}")
     out += [
         "}};",
         "",

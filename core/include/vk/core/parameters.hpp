@@ -82,11 +82,13 @@ struct ParamInfo {
 };
 
 // A parameter in the local menu (ADR-0022). The parameter generator emits one
-// for each parameter whose definition sets menu = true, in table order.
+// for each parameter whose definition sets menu = true, by group in the
+// menu's order, so a group's parameters are next to each other.
 struct MenuParam {
     std::uint16_t index;  // in the parameter table
     ParamValue step;      // of + and -, for a number; unused for an enum
     std::span<const std::string_view> value_names;  // an enum's, in the order of ParamInfo::enum_values
+    std::string_view group;  // the menu group's name, such as "ATTITUDE"
 };
 
 // Why a change was refused; also what a Link reports back. Declared in

@@ -183,3 +183,35 @@ def test_frame_types_follow_the_compiled_in_vehicle_models(tmp_path: Path):
     assert result.returncode == 1
     assert "FRAME_CLASS: default WHEELED is not compiled in" in result.stderr
     assert "FRAME_TYPE: default DIFF_2WD is not compiled in" in result.stderr
+
+
+# The repository's own definitions (spec 0016, ADR-0022).
+
+def repository_groups():
+    from vkparams.params import load_definitions
+    paths = [p for top in ("core", "drivers", "modules", "platform") for p in (REPO / top).rglob("params.toml")]
+    return load_definitions(sorted(paths))
+
+
+def test_no_actuator_or_commander_parameter_is_in_the_menu():
+    menu = [p.name for g in repository_groups() for p in g.params if p.menu]
+    assert menu
+    assert not [name for name in menu if name.startswith(("MOT", "COM"))]
+
+
+def test_the_menu_lists_the_spec_groups_in_order():
+    from vkparams.params import menu_params
+    params = [p for g in repository_groups() for p in g.params]
+    groups: dict[str, list[str]] = {}
+    for _, param in menu_params(params):
+        groups.setdefault(param.menu_group, []).append(param.name)
+    assert groups == {
+        "ATTITUDE": ["EST_PRIMARY", "ATT_KP", "ATT_KI", "ATT_ACC_REJ"],
+        "COMPASS": ["EKF_MAG_TYPE", "EKF_MAG_DECL"],
+        "MANUAL": ["MAN_VX_MAX", "MAN_YAW_MAX", "MAN_DEADZONE"],
+        "VEHICLE": ["WHL_RADIUS", "WHL_TRACK"],
+        "BOARD": ["SENS_BOARD_ROT"],
+        "LINKS": ["SERIAL1_BAUD", "SERIAL2_BAUD"],
+        "DISPLAY": ["DSP_BRIGHT", "DSP_DIM_S", "DSP_OFF_S", "DSP_SHIFT"],
+    }
+    assert list(groups) == ["ATTITUDE", "COMPASS", "MANUAL", "VEHICLE", "BOARD", "LINKS", "DISPLAY"]

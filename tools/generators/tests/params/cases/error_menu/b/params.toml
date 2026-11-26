@@ -9,4 +9,5 @@ min = 0.0
 max = 2.0
 description = "A gain in a group kept out of the menu."
 menu = true
+menu_group = "ATTITUDE"
 menu_step = 0.1

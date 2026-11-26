@@ -22,10 +22,13 @@ name = "LINK", bit = 0 }, ...]``); a boolean is an enum with two values. Enum
 values may carry their own ``kconfig`` symbol. ``reboot_required`` and
 ``locked_when_armed`` are the safety attributes.
 
-``menu = true`` puts a parameter in the local menu (ADR-0022); a number then
-needs ``menu_step``, the step of + and -, while an enum steps through its
-values. A file that sets ``menu = false`` at the top keeps its whole group out
-of the menu, and a ``menu = true`` inside it is an error.
+``menu = true`` puts a parameter in the local menu (ADR-0022); it then needs
+``menu_group``, one of ``MENU_GROUPS``, and a number needs ``menu_step``, the
+step of + and -, while an enum steps through its values. The menu lists the
+groups in the order of ``MENU_GROUPS``, and a group's parameters by the
+optional ``menu_order`` (lower first, default 0), then in definition order.
+A file that sets ``menu = false`` at the top keeps its whole group out of the
+menu, and a ``menu = true`` inside it is an error.
 
 Every definition in the repository is checked, compiled in or not: prefixes,
 names, hash collisions and defaults. Only the compiled-in ones are emitted.
@@ -51,7 +54,9 @@ INT32_MIN, INT32_MAX = -(1 << 31), (1 << 31) - 1
 
 TOP_LEVEL_KEYS = {"prefix", "kconfig", "menu", "param"}
 PARAM_KEYS = {"name", "type", "default", "min", "max", "unit", "description", "values", "bits",
-              "reboot_required", "locked_when_armed", "menu", "menu_step"}
+              "reboot_required", "locked_when_armed", "menu", "menu_step", "menu_group", "menu_order"}
+# The groups of the local menu, in the order the menu lists them (spec 0016, ADR-0022).
+MENU_GROUPS = ("ATTITUDE", "COMPASS", "MANUAL", "VEHICLE", "BOARD", "LINKS", "DISPLAY")
 VALUE_KEYS = {"name", "value", "kconfig"}
 BIT_KEYS = {"name", "bit"}
 
@@ -101,6 +106,8 @@ class Param:
     default_name: str | None = None  # enum default as written
     menu: bool = False  # in the local menu (ADR-0022)
     menu_step: int | float | None = None  # step of + and -, numbers only
+    menu_group: str | None = None  # one of MENU_GROUPS, set with menu = true
+    menu_order: int = 0  # place in the group: lower first, then definition order
 
     @property
     def hash(self) -> int:
@@ -344,13 +351,14 @@ def _parse_param(entry, prefix: str, loc: Loc, diag: Diagnostics) -> Param | Non
             return None
 
     menu, menu_step = _parse_menu(entry, name, type_, bool(values), bool(bits), loc, diag)
+    menu_group, menu_order = _parse_menu_group(entry, name, entry.get("menu") is True, loc, diag)
     if len(diag.errors) != errors_before:
         return None
     return Param(name=name, type=type_, default=default, minimum=minimum, maximum=maximum, unit=unit,
                  description=description.strip(), values=values, bits=bits,
                  reboot_required=flags["reboot_required"], locked_when_armed=flags["locked_when_armed"],
                  loc=loc, member=_member(prefix, name), default_name=default_name,
-                 menu=menu, menu_step=menu_step)
+                 menu=menu, menu_step=menu_step, menu_group=menu_group, menu_order=menu_order)
 
 
 def _parse_menu(entry: dict, name: str, type_: str, is_enum: bool, is_bitmask: bool, loc: Loc,
@@ -381,6 +389,26 @@ def _parse_menu(entry: dict, name: str, type_: str, is_enum: bool, is_bitmask: b
         diag.error(f"{name}: menu_step must be {kind}, got {step!r}", loc)
         return True, None
     return True, float(step) if type_ == "FLOAT" else step
+
+
+def _parse_menu_group(entry: dict, name: str, menu: bool, loc: Loc,
+                      diag: Diagnostics) -> tuple[str | None, int]:
+    """The menu's group and place in it (ADR-0022): both need menu = true, and the group is required."""
+    group, order = entry.get("menu_group"), entry.get("menu_order")
+    if not menu:
+        for key, value in (("menu_group", group), ("menu_order", order)):
+            if value is not None:
+                diag.error(f"{name}: {key} needs menu = true", loc)
+        return None, 0
+    if order is not None and not _is_int(order):
+        diag.error(f"{name}: menu_order must be an integer, got {order!r}", loc)
+    if group is None:
+        diag.error(f"{name}: a menu parameter needs menu_group, one of: {', '.join(MENU_GROUPS)}", loc)
+        return None, 0
+    if group not in MENU_GROUPS:
+        diag.error(f"{name}: unknown menu_group {group!r}; expected one of: {', '.join(MENU_GROUPS)}", loc)
+        return None, 0
+    return group, order if _is_int(order) else 0
 
 
 def parse_file(path: Path, display: str, diag: Diagnostics) -> Group | None:
@@ -574,6 +602,17 @@ def apply_board_defaults(groups: list[Group], defaults: dict, board_path: str, b
     return groups
 
 
+def menu_params(params: list[Param]) -> list[tuple[int, Param]]:
+    """The menu parameters with their index in `params`, in the order of the menu (ADR-0022).
+
+    By group, in the order of MENU_GROUPS, then by menu_order, then in
+    definition order: by file, then by line, then by name.
+    """
+    entries = [(index, p) for index, p in enumerate(params) if p.menu]
+    return sorted(entries, key=lambda e: (MENU_GROUPS.index(e[1].menu_group), e[1].menu_order,
+                                          e[1].loc.path, e[1].loc.line or 0, e[1].name))
+
+
 def all_params(groups: list[Group]) -> list[Param]:
     """Every parameter, sorted by name: the order of the parameter table."""
     return sorted((p for g in groups for p in g.params), key=lambda p: p.name)
@@ -599,6 +638,7 @@ def metadata(param: Param) -> dict:
     # Only menu parameters carry the menu keys, so other parameters' metadata is unchanged.
     if param.menu:
         entry["menu"] = True
+        entry["menu_group"] = param.menu_group
         if param.menu_step is not None:
             entry["menu_step"] = param.menu_step
     return entry

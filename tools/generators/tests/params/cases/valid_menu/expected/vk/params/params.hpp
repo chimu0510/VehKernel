@@ -13,7 +13,8 @@
 namespace vk::params {
 
 // From a/params.toml.
-// Menu parameters of a test module (ADR-0022).
+// Menu parameters of a test module (ADR-0022). The menu lists COMPASS after ATTITUDE, and MA_MODE,
+// with the lowest menu_order, before MA_COUNT, although both come after them by name.
 struct Ma {
     float gain = 0.5F;  // MA_GAIN A gain in the local menu.
     std::int32_t count = 3;  // MA_COUNT A count in the local menu.
@@ -32,7 +33,7 @@ extern Mb mb;
 // Every compiled-in parameter, sorted by name.
 inline constexpr std::size_t count = 5;
 // First 64 bits of SHA-256 over the metadata file's parameters (ADR-0012).
-inline constexpr std::uint64_t set_hash = 0x217E20EF7C38F533ULL;
+inline constexpr std::uint64_t set_hash = 0x899AC1FAD1EB9EFDULL;
 
 // The parameter table, sorted by name.
 std::span<const core::ParamInfo> table();
@@ -40,7 +41,7 @@ std::span<const core::ParamInfo> table();
 // The build's parameter runtime over table().
 core::Parameters& parameters();
 
-// The parameters in the local menu, in table order (ADR-0022).
+// The parameters in the local menu, by group in the menu's order (ADR-0022).
 std::span<const core::MenuParam> menu();
 
 }  // namespace vk::params

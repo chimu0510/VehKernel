@@ -86,9 +86,9 @@ constinit const std::array<core::ParamInfo, 5> entries{{
 }};
 
 constinit const std::array<core::MenuParam, 3> menu_entries{{
-    {.index = 0, .step = core::ParamValue::from_int(2), .value_names = {}},  // MA_COUNT
-    {.index = 1, .step = core::ParamValue::from_float(0.1F), .value_names = {}},  // MA_GAIN
-    {.index = 3, .step = {}, .value_names = ma_mode_names},  // MA_MODE
+    {.index = 3, .step = {}, .value_names = ma_mode_names, .group = "ATTITUDE"},  // MA_MODE
+    {.index = 0, .step = core::ParamValue::from_int(2), .value_names = {}, .group = "ATTITUDE"},  // MA_COUNT
+    {.index = 1, .step = core::ParamValue::from_float(0.1F), .value_names = {}, .group = "COMPASS"},  // MA_GAIN
 }};
 
 }  // namespace

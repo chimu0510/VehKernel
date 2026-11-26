@@ -249,20 +249,19 @@ TEST(GeneratedParameters, AttitudeGainsStartAtTheirDefaults)
 }
 
 // The local menu's parameters (ADR-0022): the whitelist this build compiles
-// in, in table order, with steps for numbers and value names for enums.
-TEST(GeneratedParameters, MenuListsTheWhitelistedParameters)
+// in, by group in the menu's order, with steps for numbers and value names for enums.
+TEST(GeneratedParameters, MenuListsTheWhitelistedParametersByGroup)
 {
     const auto table = vk::params::table();
     std::vector<std::string_view> names;
-    std::size_t previous = 0;
+    std::vector<std::string_view> groups;
     for (const vk::core::MenuParam& entry : vk::params::menu()) {
         ASSERT_LT(entry.index, table.size());
-        if (!names.empty()) {
-            EXPECT_GT(entry.index, previous);
-        }
-        previous = entry.index;
         const ParamInfo& info = table[entry.index];
         names.push_back(info.name);
+        if (groups.empty() || groups.back() != entry.group) {
+            groups.push_back(entry.group);
+        }
         if (info.enum_values.empty()) {
             EXPECT_EQ(entry.step.type, info.type) << info.name;
             EXPECT_TRUE(entry.value_names.empty()) << info.name;
@@ -270,16 +269,47 @@ TEST(GeneratedParameters, MenuListsTheWhitelistedParameters)
             EXPECT_EQ(entry.value_names.size(), info.enum_values.size()) << info.name;
         }
     }
-    // SERIAL1_BAUD is a menu parameter too, but only the STM32F4 platform compiles it in.
-    EXPECT_EQ(names, (std::vector<std::string_view>{"ATT_ACC_REJ", "ATT_KI", "ATT_KP", "EKF_MAG_DECL", "EKF_MAG_TYPE", "SENS_BOARD_ROT"}));
+    // SERIAL1_BAUD and SERIAL2_BAUD, the LINKS group, are menu parameters too, but only the STM32F4 platform
+    // compiles them in.
+    EXPECT_EQ(names, (std::vector<std::string_view>{"EST_PRIMARY", "ATT_KP", "ATT_KI", "ATT_ACC_REJ", "EKF_MAG_TYPE",
+                                                    "EKF_MAG_DECL", "MAN_VX_MAX", "MAN_YAW_MAX", "MAN_DEADZONE",
+                                                    "WHL_RADIUS", "WHL_TRACK", "SENS_BOARD_ROT", "DSP_BRIGHT",
+                                                    "DSP_DIM_S", "DSP_OFF_S", "DSP_SHIFT"}));
+    // Each group is listed once, in the menu's order.
+    EXPECT_EQ(groups, (std::vector<std::string_view>{"ATTITUDE", "COMPASS", "MANUAL", "VEHICLE", "BOARD", "DISPLAY"}));
 
-    const auto& rot = vk::params::menu().back();
-    const ParamInfo& info = table[rot.index];
-    ASSERT_EQ(info.enum_values.size(), rot.value_names.size());
-    const auto yaw90 = std::ranges::find(rot.value_names, "YAW_90");
-    ASSERT_NE(yaw90, rot.value_names.end());
-    EXPECT_EQ(info.enum_values[static_cast<std::size_t>(yaw90 - rot.value_names.begin())], 2);
-    EXPECT_FLOAT_EQ(vk::params::menu().front().step.as_float(), 0.01F);
+    const auto menu = vk::params::menu();
+    const auto rot_entry = std::ranges::find_if(menu, [&](const vk::core::MenuParam& entry) {
+        return table[entry.index].name == "SENS_BOARD_ROT";
+    });
+    ASSERT_NE(rot_entry, menu.end());
+    const ParamInfo& info = table[rot_entry->index];
+    ASSERT_EQ(info.enum_values.size(), rot_entry->value_names.size());
+    const auto yaw90 = std::ranges::find(rot_entry->value_names, "YAW_90");
+    ASSERT_NE(yaw90, rot_entry->value_names.end());
+    EXPECT_EQ(info.enum_values[static_cast<std::size_t>(yaw90 - rot_entry->value_names.begin())], 2);
+    EXPECT_FLOAT_EQ(menu[1].step.as_float(), 0.1F);  // ATT_KP
+}
+
+// The display's parameters (spec 0016): defaults and ranges, used by the display's protection.
+TEST(GeneratedParameters, DisplayParametersHaveTheSpecDefaults)
+{
+    auto& parameters = vk::params::parameters();
+    const std::size_t none = parameters.count();
+    const std::size_t bright = parameters.find("DSP_BRIGHT").value_or(none);
+    const std::size_t dim = parameters.find("DSP_DIM_S").value_or(none);
+    const std::size_t off = parameters.find("DSP_OFF_S").value_or(none);
+    const std::size_t shift = parameters.find("DSP_SHIFT").value_or(none);
+    ASSERT_LT(bright, none);
+    ASSERT_LT(dim, none);
+    ASSERT_LT(off, none);
+    ASSERT_LT(shift, none);
+    EXPECT_EQ(parameters.info(bright).default_value.as_int(), 100);
+    EXPECT_EQ(parameters.info(bright).min.as_int(), 10);
+    EXPECT_EQ(parameters.info(bright).max.as_int(), 100);
+    EXPECT_EQ(parameters.info(dim).default_value.as_int(), 60);
+    EXPECT_EQ(parameters.info(off).default_value.as_int(), 600);
+    EXPECT_EQ(parameters.info(shift).default_value.as_int(), 1);
 }
 
 TEST(GeneratedParameters, NoActuatorOrCommanderParameterIsInTheMenu)

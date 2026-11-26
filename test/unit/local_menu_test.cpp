@@ -152,10 +152,10 @@ std::array<ParamInfo, 4> make_table()
 }
 
 const std::array<MenuParam, 4> menu_entries{{
-    {.index = 0, .step = ParamValue::from_int(3), .value_names = {}},
-    {.index = 1, .step = ParamValue::from_float(0.1F), .value_names = {}},
-    {.index = 2, .step = {}, .value_names = lock_names},
-    {.index = 3, .step = {}, .value_names = mode_names},
+    {.index = 0, .step = ParamValue::from_int(3), .value_names = {}, .group = {}},
+    {.index = 1, .step = ParamValue::from_float(0.1F), .value_names = {}, .group = {}},
+    {.index = 2, .step = {}, .value_names = lock_names, .group = {}},
+    {.index = 3, .step = {}, .value_names = mode_names, .group = {}},
 }};
 
 void publish_armed(bool armed)
@@ -420,8 +420,8 @@ TEST(LocalMenuFormat, NumbersShowTheDecimalsOfTheirStep)
     const ParamInfo int_param = int_info("F_INT", &integer, 0, -100, 100);
     ParamInfo float_param = int_param;
     float_param.type = ParamType::Float;
-    const MenuParam hundredths{.index = 0, .step = ParamValue::from_float(0.01F), .value_names = {}};
-    const MenuParam tenths{.index = 0, .step = ParamValue::from_float(0.1F), .value_names = {}};
+    const MenuParam hundredths{.index = 0, .step = ParamValue::from_float(0.01F), .value_names = {}, .group = {}};
+    const MenuParam tenths{.index = 0, .step = ParamValue::from_float(0.1F), .value_names = {}, .group = {}};
     EXPECT_EQ(vk::local_display::format_value(int_param, hundredths, ParamValue::from_int(integer)).view(), "-12");
     EXPECT_EQ(vk::local_display::format_value(float_param, hundredths, ParamValue::from_float(number)).view(), "0.05");
     EXPECT_EQ(vk::local_display::format_value(float_param, tenths, ParamValue::from_float(1.0F)).view(), "1.0");

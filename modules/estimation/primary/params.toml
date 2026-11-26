@@ -13,3 +13,6 @@ values = [
     { name = "EKF", value = 2 },
 ]
 description = "Which attitude estimator publishes vehicle_attitude: MAHONY (1) or EKF (2)."
+menu = true
+menu_group = "ATTITUDE"
+menu_order = -1  # first in its group, before the Mahony gains

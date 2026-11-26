@@ -1,6 +1,6 @@
 {
   "generator": "tools/generators/generate_params.py",
-  "set_hash": "0x217E20EF7C38F533",
+  "set_hash": "0x899AC1FAD1EB9EFD",
   "parameters": [
     {
       "name": "MA_COUNT",
@@ -14,6 +14,7 @@
       "reboot_required": false,
       "locked_when_armed": false,
       "menu": true,
+      "menu_group": "ATTITUDE",
       "menu_step": 2
     },
     {
@@ -28,6 +29,7 @@
       "reboot_required": false,
       "locked_when_armed": false,
       "menu": true,
+      "menu_group": "COMPASS",
       "menu_step": 0.1
     },
     {
@@ -73,7 +75,8 @@
           "value": -1
         }
       ],
-      "menu": true
+      "menu": true,
+      "menu_group": "ATTITUDE"
     },
     {
       "name": "MB_LIMIT",

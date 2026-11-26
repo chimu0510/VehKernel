@@ -72,6 +72,7 @@ values = [
 ]
 description = "Magnetometer heading fusion: AUTO (0), OFF (1), or HEADING (2)."
 menu = true
+menu_group = "COMPASS"
 
 [[param]]
 name = "EKF_MAG_NOISE"
@@ -100,6 +101,7 @@ max = 180.0
 unit = "deg"
 description = "Magnetic declination: angle from true north to magnetic north, east positive."
 menu = true
+menu_group = "COMPASS"
 menu_step = 1.0
 
 [[param]]

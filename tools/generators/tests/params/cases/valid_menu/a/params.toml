@@ -1,4 +1,5 @@
-# Menu parameters of a test module (ADR-0022).
+# Menu parameters of a test module (ADR-0022). The menu lists COMPASS after ATTITUDE, and MA_MODE,
+# with the lowest menu_order, before MA_COUNT, although both come after them by name.
 prefix = "MA"
 
 [[param]]
@@ -9,6 +10,7 @@ min = 0.0
 max = 2.0
 description = "A gain in the local menu."
 menu = true
+menu_group = "COMPASS"
 menu_step = 0.1
 
 [[param]]
@@ -19,6 +21,7 @@ min = 0
 max = 10
 description = "A count in the local menu."
 menu = true
+menu_group = "ATTITUDE"
 menu_step = 2
 
 [[param]]
@@ -32,6 +35,8 @@ values = [
 ]
 description = "A mode in the local menu; FAST is not compiled in, so its name is not either."
 menu = true
+menu_group = "ATTITUDE"
+menu_order = -1
 
 [[param]]
 name = "MA_HIDDEN"
