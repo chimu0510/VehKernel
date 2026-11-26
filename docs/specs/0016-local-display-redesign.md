@@ -1,6 +1,6 @@
 # Spec 0016: the local display redesigned, with graphics, gestures and more settings
 
-**Status**: in progress. Issue: [#203](https://github.com/chimu0510/VehKernel/issues/203); tickets not published yet. Agreed with the maintainer on 2026-11-26.
+**Status**: in progress. Issue: [#203](https://github.com/chimu0510/VehKernel/issues/203); tickets [#204](https://github.com/chimu0510/VehKernel/issues/204) to [#211](https://github.com/chimu0510/VehKernel/issues/211). Agreed with the maintainer on 2026-11-26.
 
 Until this spec is done, this file and its issue carry the same spec; update both in the same edit.
 
@@ -95,6 +95,6 @@ Deliver the sixteenth milestone: **a redesigned local display with a status bar,
 
 ## Further Notes
 
-- Tickets, in dependency order: (1) drawing, fonts, icons and the reference image tests; (2) `menu_group` and the eighteen menu parameters; (3) `arming_checks` in the commander, the topic map and `link_monitor.py`; (4) gestures, the menu and edit screen, display protection, and SITL's `key` command, after (2); (5) the status bar, overview, attitude and motion pages, after (1), (3) and (4); (6) the arming checks, sensors, Links, remote control and system pages, after the same; (7) the SITL model and checks and the rewritten `docs/guide/local-display.md`, after (5) and (6); (8) the hardware check. (1), (2) and (3) can run at the same time.
+- Tickets, in dependency order: #204 drawing, fonts, icons and the reference image tests; #205 `menu_group` and the eighteen menu parameters; #206 `arming_checks` in the commander, the topic map and `link_monitor.py`; #207 gestures, the menu and edit screen, display protection, and SITL's `key` command, after #205; #208 the status bar, overview, attitude and motion pages, after #204, #206 and #207; #209 the arming checks, sensors, Links, remote control and system pages, after the same; #210 the SITL checks and the rewritten `docs/guide/local-display.md`, after #208 and #209; #211 the hardware check. #204, #205 and #206 can run at the same time.
 - Each ticket is delegated to a Claude Code session on Sonnet in its own worktree, as in spec 0015; the main agent reviews, reruns the checks and lands it.
 - When the spec is done the version becomes 0.3.0 (ADR-0023).
