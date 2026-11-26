@@ -17,7 +17,7 @@
 | [Flashing](guide/flashing.md) | SWD, the serial flasher, rebooting into the bootloader |
 | [SITL](guide/sitl.md) | Options, report, motion profiles, transports |
 | [Link monitor](guide/link-monitor.md) | Live view, checks, attitude, parameters, recording a log |
-| [Companion computer](guide/companion-computer.md) | Host tools bundle, unpacking, parameters, flashing, the Bridge |
+| [Companion computer](guide/companion-computer.md) | Host tools bundle, unpacking, parameters, flashing, clock synchronization, the Bridge |
 | [ROS2 Bridge](guide/ros2-bridge.md) | Installing ROS2 Jazzy, building and running the Bridge, topics, services, parameters, frames, silence |
 | [Estimation](guide/estimation.md) | Attitude estimators, heading fusion, magnetometer calibration, board orientation check |
 | [Driving the wheels](guide/driving.md) | Safety conditions, arming, motor bring-up, driving, odometry, remote control |

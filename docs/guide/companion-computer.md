@@ -124,6 +124,76 @@ For a new or corrupted board, write the bootloader and firmware through the down
 tools/flash/flash_serial.py new-board
 ```
 
+## Clock synchronization
+
+The companion computer's clock and the development host's must agree before ROS2 runs across both, or logs from both are compared. The Bridge stamps every output with the MCU's sample time on the companion computer's clock ([ROS2 Bridge](ros2-bridge.md#topics-services-and-parameters)), so the MCU needs nothing; but when RViz or Nav2 runs on the development host, an offset between the two computers makes their TF and messages look stale or from the future, and RViz drops them. Keep both within a few milliseconds of the same NTP server.
+
+A Raspberry Pi 5 has a real-time clock, but without its backup battery it starts each boot from the last time it saved, so it falls behind by as long as it was off until NTP corrects it. Nothing corrects it when the NTP service is off, or when its NTP server, often the local router, keeps the wrong time itself.
+
+### Checking
+
+On each computer:
+
+```bash
+timedatectl
+```
+
+`System clock synchronized: yes` and `NTP service: active` mean it is synchronized. `timedatectl timesync-status` names the server and the last offset.
+
+### Choosing a server
+
+Before configuring a server, check that it answers with the right time from this network. Save this standard-library script as `ntp_offset.py`; it prints the computer's offset from the server it is given:
+
+```python
+import socket, struct, sys, time
+server = sys.argv[1]
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(2)
+t0 = time.time()
+s.sendto(b"\x1b" + 47 * b"\0", (server, 123))
+try:
+    reply = s.recv(48)
+except TimeoutError:
+    sys.exit(f"{server}: no answer within 2 s")
+t1 = time.time()
+seconds, fraction = struct.unpack("!II", reply[40:48])
+server_time = seconds - 2208988800 + fraction / 2**32
+print(f"{server}: this computer minus the server: {(t0 + t1) / 2 - server_time:+.3f} s")
+```
+
+```bash
+python3 ntp_offset.py pool.ntp.org
+```
+
+A timeout means the network blocks NTP to that server; an offset of days or weeks on a computer whose clock is right means the server keeps the wrong time. Pick a server that answers with an offset of milliseconds on a synchronized computer: your country's national time service, or `pool.ntp.org`.
+
+### Fixing
+
+On Ubuntu, `systemd-timesyncd` keeps the clock. Name the server in a drop-in file, which leaves `/etc/systemd/timesyncd.conf` as it is; the empty `NTP=` clears any server set there, such as the router. Then turn NTP on and restart the service; the clock jumps to the right time at once, and is corrected again at every boot. Run this on each computer, with your server in place of the examples:
+
+```bash
+sudo mkdir -p /etc/systemd/timesyncd.conf.d && printf "[Time]\nNTP=\nNTP=0.pool.ntp.org\nFallbackNTP=1.pool.ntp.org 2.pool.ntp.org\n" | sudo tee /etc/systemd/timesyncd.conf.d/50-ntp.conf && sudo timedatectl set-ntp true && sudo systemctl restart systemd-timesyncd
+```
+
+On the companion computer, over ssh, add `-t` so that sudo can ask for the password:
+
+```bash
+ssh -t pi@companion 'sudo mkdir -p /etc/systemd/timesyncd.conf.d && printf "[Time]\nNTP=\nNTP=0.pool.ntp.org\nFallbackNTP=1.pool.ntp.org 2.pool.ntp.org\n" | sudo tee /etc/systemd/timesyncd.conf.d/50-ntp.conf && sudo timedatectl set-ntp true && sudo systemctl restart systemd-timesyncd'
+```
+
+A computer that runs chrony instead of `systemd-timesyncd` names its servers in `/etc/chrony/chrony.conf`, and `chronyc tracking` shows its offset.
+
+### Comparing the two clocks
+
+Run `ntp_offset.py` with the same server on the development host and, through ssh, on the companion computer, which reads the script from the development host:
+
+```bash
+python3 ntp_offset.py pool.ntp.org
+ssh pi@companion python3 - pool.ntp.org < ntp_offset.py
+```
+
+The difference between the two offsets is the offset between the two computers. Each measurement is good to about half its network round trip, a few milliseconds over Wi-Fi, so two synchronized computers differ by a few milliseconds. Comparing `date` on both over ssh is not a measurement: the ssh round trip, often hundreds of milliseconds, and the remote command's start-up land in the result.
+
 ## ROS2
 
 The ROS2 Bridge connects the Link to ROS2 Jazzy on the companion computer: `/odom`, the TF, `/imu/data`, the vehicle status, `/cmd_vel` and services for arming, the mode and the emergency stop. It is built from the repository with colcon, not from a bundle, and needs ROS2 Jazzy from apt on Ubuntu 24.04; its guide covers installing, building, the serial device's permissions and running it against SITL and a board ([ROS2 Bridge](ros2-bridge.md)). Both the Bridge and the Link monitor open the board's serial device, so stop the Bridge before running `link_monitor.py` on it.

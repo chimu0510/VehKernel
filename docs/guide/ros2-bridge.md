@@ -118,7 +118,7 @@ Disarm with `{data: false}` on `/vehkernel/arm`. The remote control takes over f
 
 ## Topics, services and parameters
 
-Every output is stamped with the MCU's sample time on the companion computer's clock, from the time synchronization the Bridge repeats while connected.
+Every output is stamped with the MCU's sample time on the companion computer's clock, from the time synchronization the Bridge repeats while connected. When other computers, such as a development host running RViz, take part in the same ROS2 system, synchronize their clocks with the companion computer's first ([Clock synchronization](companion-computer.md#clock-synchronization)).
 
 | Topic | Type | Direction | Contents |
 |---|---|---|---|
