@@ -22,7 +22,16 @@ void LocalMenuTask::run()
         armed_ = arming.armed;
     }
     const bool pressed = config_.key_pressed != nullptr && config_.key_pressed();
-    menu_.on_key(key_.sample(now, pressed), now, armed_);
+    const KeyEvent event = key_.sample(now, pressed);
+    if (event == KeyEvent::Press && config_.protection != nullptr && config_.protection->on_key_press(now)) {
+        // The display was dimmed or dark: this press only woke it.
+        key_.swallow();
+    } else {
+        if (event != KeyEvent::None && event != KeyEvent::Press && config_.protection != nullptr) {
+            config_.protection->wake(now);  // the key is still in use: restarts the idle time
+        }
+        menu_.on_key(event, now, armed_);
+    }
     menu_.tick(now, armed_);
 
     msg::LocalMenu status{};

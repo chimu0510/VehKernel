@@ -97,6 +97,7 @@ if(CONFIG_LOCAL_DISPLAY)
   # The local display (ADR-0022): page rendering uses neither the bus nor
   # FreeRTOS and is tested on the development host; the work item wraps it.
   vk_add_library(vk_local_display LAYER module STATIC
+    local_display/src/display_protection.cpp
     local_display/src/font.cpp
     local_display/src/graphics.cpp
     local_display/src/icons.cpp

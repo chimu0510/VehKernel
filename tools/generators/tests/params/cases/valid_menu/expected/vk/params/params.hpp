@@ -17,7 +17,7 @@ namespace vk::params {
 // with the lowest menu_order, before MA_COUNT, although both come after them by name.
 struct Ma {
     float gain = 0.5F;  // MA_GAIN A gain in the local menu.
-    std::int32_t count = 3;  // MA_COUNT A count in the local menu.
+    std::int32_t count = 3;  // MA_COUNT [pcs] A count in the local menu.
     std::int32_t mode = 0;  // MA_MODE A mode in the local menu; FAST is not compiled in, so its name is not either.
     std::int32_t hidden = 0;  // MA_HIDDEN An enum outside the local menu, whose names stay out of the firmware.
 };
@@ -33,7 +33,7 @@ extern Mb mb;
 // Every compiled-in parameter, sorted by name.
 inline constexpr std::size_t count = 5;
 // First 64 bits of SHA-256 over the metadata file's parameters (ADR-0012).
-inline constexpr std::uint64_t set_hash = 0x899AC1FAD1EB9EFDULL;
+inline constexpr std::uint64_t set_hash = 0x12DCADA65EC455BCULL;
 
 // The parameter table, sorted by name.
 std::span<const core::ParamInfo> table();

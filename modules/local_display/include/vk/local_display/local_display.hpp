@@ -16,6 +16,7 @@
 #include <vk/core/bus.hpp>
 #include <vk/core/work_queue.hpp>
 #include <vk/drivers/ssd1306.hpp>
+#include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/local_menu.hpp>
 #include <vk/local_display/pages.hpp>
 #include <vk/msg/link_status.hpp>
@@ -32,8 +33,9 @@ public:
     static constexpr std::uint32_t interval_us = 50'000;        // how soon a key press shows
     static constexpr std::uint64_t topic_interval_us = 200'000;  // values change at most 5 Hz (ADR-0022)
 
-    // `menu`, if any, must run on the same work queue.
-    LocalDisplay(drivers::Ssd1306& display, const LocalMenu* menu, core::WorkQueue& queue);
+    // `menu`, if any, and `protection`, which the menu task may share, must run on the same work queue.
+    LocalDisplay(drivers::Ssd1306& display, const LocalMenu* menu, DisplayProtection& protection,
+                 core::WorkQueue& queue);
 
     // Starts the periodic runs.
     void start();
@@ -44,6 +46,7 @@ protected:
 private:
     drivers::Ssd1306& display_;
     const LocalMenu* menu_;
+    DisplayProtection& protection_;
     core::Subscription<msg::VehicleStatus> status_{0};
     core::Subscription<msg::VehicleAttitude> attitude_{0};
     std::array<core::Subscription<msg::LinkStatus>, msg::LinkStatus::instances> links_{

@@ -6,7 +6,11 @@
 // into the controller's 128 x 64 display RAM, and shows that RAM as the panel
 // does. Page addressing is modelled, which is what the driver uses; the
 // commands that only tune the panel's drive are accepted and their bytes
-// kept, so tests can check the initialisation sequence.
+// kept, so tests can check the initialisation sequence. The contrast (0x81)
+// and display on and off (0xAE, 0xAF) are modelled for display protection
+// (spec 0016): the RAM keeps the image while the display is off, and the
+// image the panel shows is dark. An offset of the image is made by the
+// driver in the data it writes, so it shows in the pixels.
 //
 // The image follows the vendor firmware's coordinates: x to the right and y
 // down from the top left corner of the panel as it sits on the C50C. With the
@@ -38,6 +42,8 @@ public:
     [[nodiscard]] bool displaying() const;
     // A pixel of the image as the panel shows it; false while not displaying.
     [[nodiscard]] bool pixel(std::size_t x, std::size_t y) const;
+    // The contrast the panel is set to, 0x7F after a reset as on the chip.
+    [[nodiscard]] std::uint8_t contrast() const { return contrast_; }
     // One byte of display RAM.
     [[nodiscard]] std::uint8_t ram(std::size_t page, std::size_t column) const;
 
@@ -50,8 +56,11 @@ public:
 
     // The image as a binary PBM (P4) file.
     [[nodiscard]] std::string pbm() const;
-    // Writes pbm() to `path` after every data write, replacing the file in
-    // one rename so a reader never sees half an image; empty to stop.
+    // Writes the image to `path` after every data write and every change of
+    // contrast or display on and off, replacing the file in one rename so a
+    // reader never sees half an image; empty to stop. The image is dark while
+    // the display is off. The contrast goes to the file `path`.contrast as a
+    // decimal number, 0 to 255.
     void write_image_to(std::string path) { image_path_ = std::move(path); }
 
 private:
@@ -67,6 +76,7 @@ private:
     bool com_reversed_ = false;   // 0xC8: COM scan from COM63
     bool inverted_ = false;       // 0xA7
     bool all_on_ = false;         // 0xA5
+    std::uint8_t contrast_ = 0x7F;  // 0x81
     std::uint8_t page_ = 0;
     std::uint8_t column_ = 0;
     std::uint8_t pending_command_ = 0;  // a command still waiting for its arguments

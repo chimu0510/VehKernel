@@ -14,8 +14,8 @@ KeyEvent UserKey::sample(std::uint64_t now_us, bool pressed)
         agreeing_ = 1;
     }
     if (agreeing_ < debounce_samples) {
-        // Not settled: a pending long press or repeat still runs on time.
-        pressed = phase_ == Phase::Pressed || phase_ == Phase::Held;
+        // Not settled: the level stays what it was, so a pending long press still runs on time.
+        pressed = down();
     }
 
     switch (phase_) {
@@ -33,31 +33,49 @@ KeyEvent UserKey::sample(std::uint64_t now_us, bool pressed)
         if (pressed) {
             phase_ = Phase::Pressed;
             pressed_at_us_ = now_us;
+            return KeyEvent::Press;
         }
         return KeyEvent::None;
     case Phase::Pressed:
         if (!pressed) {
-            phase_ = Phase::Released;
-            return KeyEvent::Short;
+            phase_ = Phase::Waiting;
+            released_at_us_ = now_us;
+            return KeyEvent::Release;
         }
         if (now_us - pressed_at_us_ >= long_press_us) {
-            phase_ = Phase::Held;
-            next_repeat_us_ = now_us + repeat_interval_us;
+            phase_ = Phase::Consumed;
             return KeyEvent::Long;
         }
         return KeyEvent::None;
-    case Phase::Held:
+    case Phase::Waiting:
+        // The time is checked first, so a press at exactly the double click
+        // time after the release is a new press, not a second one.
+        if (now_us - released_at_us_ >= double_click_us) {
+            phase_ = Phase::Released;
+            return KeyEvent::Click;
+        }
+        if (pressed) {
+            phase_ = Phase::Consumed;
+            return KeyEvent::Double;
+        }
+        return KeyEvent::None;
+    case Phase::Consumed:
         if (!pressed) {
             phase_ = Phase::Released;
-            return KeyEvent::None;
-        }
-        if (now_us >= next_repeat_us_) {
-            next_repeat_us_ += repeat_interval_us;
-            return KeyEvent::Repeat;
+            return KeyEvent::Release;
         }
         return KeyEvent::None;
     }
     return KeyEvent::None;
+}
+
+void UserKey::swallow()
+{
+    if (phase_ == Phase::Pressed) {
+        phase_ = Phase::Consumed;
+    } else if (phase_ == Phase::Waiting) {
+        phase_ = Phase::Released;
+    }
 }
 
 }  // namespace vk::local_display

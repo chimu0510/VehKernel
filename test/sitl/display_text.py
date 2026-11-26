@@ -52,3 +52,38 @@ def screen_text(path: Path) -> list[str]:
             text += glyphs.get(rows, "\x00")
         lines.append(text.rstrip())
     return lines
+
+
+def read_contrast(path: Path) -> int:
+    """The contrast the simulated SSD1306 is set to, which --display records next to the image."""
+    return int(Path(str(path) + ".contrast").read_text(encoding="utf-8").strip())
+
+
+def is_dark(path: Path) -> bool:
+    """Whether the image shows no lit pixel, as while the display is off."""
+    return not any(any(row) for row in read_pbm(path))
+
+
+def has_text(path: Path, text: str, glyphs: dict[tuple[str, ...], str] | None = None) -> bool:
+    """Whether `text` is drawn anywhere on the image, in the 5 x 7 font on a dark ground or dark on a
+    lit one, at any pixel position. The menu screens of spec 0016 draw text at pixel positions, not
+    in the cells of screen_text()."""
+    table = glyphs if glyphs is not None else load_glyphs()
+    rows_of = {char: rows for rows, char in table.items()}
+    image = read_pbm(path)
+    height, width = len(image), len(image[0])
+    # Each character's glyph in a 6-pixel cell: the pixels that are lit and those that are dark in it.
+    lit: list[tuple[int, int]] = []
+    dark: list[tuple[int, int]] = []
+    for index, char in enumerate(text):
+        for y, row in enumerate(rows_of[char]):
+            for x, pixel in enumerate(row):
+                (lit if pixel == "#" else dark).append((index * CELL_W + x, y))
+    span = len(text) * CELL_W - (CELL_W - GLYPH_W)
+    for inverted in (False, True):
+        on, off = (dark, lit) if inverted else (lit, dark)
+        for y0 in range(height - GLYPH_H + 1):
+            for x0 in range(width - span + 1):
+                if all(image[y0 + y][x0 + x] for x, y in on) and not any(image[y0 + y][x0 + x] for x, y in off):
+                    return True
+    return False

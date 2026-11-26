@@ -9,6 +9,7 @@
 #include <vk/core/work_queue.hpp>
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/hal/display_bus.hpp>
+#include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/font.hpp>
 #include <vk/local_display/local_display.hpp>
 #include <vk/local_display/local_menu.hpp>
@@ -250,7 +251,8 @@ protected:
     vk::sim::Ssd1306 panel;
     vk::drivers::Ssd1306 driver{vk::hal::DisplayDevice(panel)};
     vk::local_display::LocalMenu menu{vk::params::parameters(), {}};
-    LocalDisplay display{driver, &menu, queue};
+    vk::local_display::DisplayProtection protection;
+    LocalDisplay display{driver, &menu, protection, queue};
     vk::core::Publication<vk::msg::VehicleStatus> status{0};
     vk::core::Publication<vk::msg::VehicleAttitude> attitude{0};
     vk::core::Publication<vk::msg::LinkStatus> link{0};
@@ -258,14 +260,14 @@ protected:
 
 TEST_F(LocalDisplayWorkItemTest, AKeyPressIsWhollyOnThePanelAfterOneRun)
 {
-    menu.on_key(vk::local_display::KeyEvent::Short, fake_now, false);
+    menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);
     step(LocalDisplay::interval_us);
     EXPECT_EQ(panel.pbm(), panel_image(Page::Attitude, sample_inputs()));
 }
 
 TEST_F(LocalDisplayWorkItemTest, TopicValuesChangeAtMostFiveTimesASecond)
 {
-    menu.on_key(vk::local_display::KeyEvent::Short, fake_now, false);
+    menu.on_key(vk::local_display::KeyEvent::Click, fake_now, false);
     step(LocalDisplay::interval_us);
     panel.take_written_pages();
 

@@ -152,5 +152,5 @@ firmware version=0.2.0 git=f80f754f dirty=0 board_id=22083
 | `param list`, `param get <name>`, `param set <name> <value>` | [Parameters](#parameters) |
 | `mode`, `arm`, `disarm`, `estop`, `drive`, `drive-body`, `bringup motors`, `sim-power` | [Driving the wheels](driving.md) |
 | `sim-gamepad` | [Remote control](driving.md#remote-control) |
-| `key short\|long\|hold <seconds>` | [Local display](local-display.md) |
+| `key click\|double\|long\|hold <seconds>` | [Local display](local-display.md) |
 | `reboot`, `reboot --bootloader` | [Flashing](flashing.md#rebooting-into-the-bootloader) |

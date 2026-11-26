@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The user key and the local menu as a work item on wq:slow (ADR-0022).
 //
-// Every 10 ms it samples the user key, turns its presses into menu actions
+// Every 10 ms it samples the user key, turns its gestures into menu actions
 // with the arming state from arming_state, and publishes local_menu on every
 // change and once a second, which the commander reads to refuse arming
 // while the menu is open. It writes parameters only through the parameter
 // service and has no other output: no setpoints, mode, arming or emergency
-// stop requests. The local display shows the menu, on the same work queue.
+// stop requests. The local display shows the menu, on the same work queue. A
+// press on a dimmed or dark display only wakes it (spec 0016): the task tells
+// the display's protection of each press, and drops the gesture if it was
+// asleep.
 #pragma once
 
 #include <vk/core/bus.hpp>
 #include <vk/core/parameters.hpp>
 #include <vk/core/work_queue.hpp>
+#include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/local_menu.hpp>
 #include <vk/local_display/user_key.hpp>
 #include <vk/msg/arming_state.hpp>
@@ -28,6 +32,7 @@ public:
 
     struct Config {
         bool (*key_pressed)() = nullptr;  // reads the user key, true while pressed
+        DisplayProtection* protection = nullptr;  // the display's, on the same work queue; none to always act
     };
 
     LocalMenuTask(const Config& config, core::Parameters& parameters, std::span<const core::MenuParam> menu,

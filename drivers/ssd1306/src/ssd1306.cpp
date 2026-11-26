@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <vk/drivers/ssd1306.hpp>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace vk::drivers {
@@ -62,11 +64,14 @@ std::size_t Ssd1306::update(std::uint64_t now_us, std::size_t max_pages)
         initialise();
         state_ = State::Ready;
     }
+    if (settings_changed_) {
+        apply_settings();
+    }
     std::size_t written = 0;
     for (std::size_t scanned = 0; scanned < MonoFrame::pages && written < max_pages; ++scanned) {
         const std::size_t page = next_page_;
         next_page_ = (next_page_ + 1) % MonoFrame::pages;
-        if (stale_.at(page) || frame_.bytes.at(page) != shown_.bytes.at(page)) {
+        if (stale_.at(page) || shifted(page) != shown_.bytes.at(page)) {
             write_page(page);
             ++written;
         }
@@ -77,6 +82,8 @@ std::size_t Ssd1306::update(std::uint64_t now_us, std::size_t max_pages)
 void Ssd1306::initialise()
 {
     device_.write_commands(init_sequence);
+    // The sequence leaves the vendor's contrast and the display on.
+    settings_changed_ = contrast_ != default_contrast || !display_on_;
     // The RAM holds whatever it held before the reset.
     stale_.fill(true);
     next_page_ = 0;
@@ -90,13 +97,80 @@ void Ssd1306::write_page(std::size_t page)
     const std::array<std::uint8_t, 3> address{static_cast<std::uint8_t>(0xB0U | ram_page), 0x00, 0x10};
     device_.write_commands(address);
     std::array<std::uint8_t, MonoFrame::width> data{};
-    const auto& source = frame_.bytes.at(page);
+    const auto source = shifted(page);
     for (std::size_t column = 0; column < MonoFrame::width; ++column) {
         data.at(column) = reverse_bits(source.at(column));
     }
     device_.write_data(data);
     shown_.bytes.at(page) = source;
     stale_.at(page) = false;
+}
+
+void Ssd1306::set_contrast(std::uint8_t contrast)
+{
+    if (contrast != contrast_) {
+        contrast_ = contrast;
+        settings_changed_ = true;
+    }
+}
+
+void Ssd1306::set_display_on(bool on)
+{
+    if (on != display_on_) {
+        display_on_ = on;
+        settings_changed_ = true;
+    }
+}
+
+void Ssd1306::set_offset(int dx, int dy)
+{
+    dx = std::clamp(dx, -max_offset, max_offset);
+    dy = std::clamp(dy, -max_offset, max_offset);
+    if (dx != offset_x_ || dy != offset_y_) {
+        offset_x_ = dx;
+        offset_y_ = dy;
+        // Every page changes; the next update() writes them as it scans.
+    }
+}
+
+void Ssd1306::apply_settings()
+{
+    // 0x81 is the contrast command, 0xAE and 0xAF turn the display off and on.
+    const std::array<std::uint8_t, 3> commands{0x81, contrast_, static_cast<std::uint8_t>(display_on_ ? 0xAF : 0xAE)};
+    device_.write_commands(commands);
+    settings_changed_ = false;
+}
+
+std::array<std::uint8_t, MonoFrame::width> Ssd1306::shifted(std::size_t page) const
+{
+    const auto& current = frame_.bytes.at(page);
+    if (offset_x_ == 0 && offset_y_ == 0) {
+        return current;
+    }
+    // Rows: this page's bits come from `dy` rows higher in the frame, which
+    // spans this page and the one above (dy > 0) or below (dy < 0).
+    const std::array<std::uint8_t, MonoFrame::width> zeros{};
+    const auto& above = page > 0 ? frame_.bytes.at(page - 1) : zeros;
+    const auto& below = page + 1 < MonoFrame::pages ? frame_.bytes.at(page + 1) : zeros;
+    std::array<std::uint8_t, MonoFrame::width> out{};
+    constexpr int columns = static_cast<int>(MonoFrame::width);
+    for (int column = 0; column < columns; ++column) {
+        const int source = column - offset_x_;
+        if (source < 0 || source >= columns) {
+            continue;
+        }
+        const auto s = static_cast<std::size_t>(source);
+        unsigned bits = 0;
+        if (offset_y_ >= 0) {
+            const auto dy = static_cast<unsigned>(offset_y_);
+            bits = (static_cast<unsigned>(current.at(s)) << dy) | (static_cast<unsigned>(above.at(s)) >> (8U - dy));
+        } else {
+            const auto dy = static_cast<unsigned>(-offset_y_);
+            bits = (static_cast<unsigned>(current.at(s)) >> dy) | (static_cast<unsigned>(below.at(s)) << (8U - dy));
+        }
+        out.at(static_cast<std::size_t>(column)) = static_cast<std::uint8_t>(bits & 0xFFU);
+    }
+    return out;
 }
 
 }  // namespace vk::drivers

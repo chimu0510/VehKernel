@@ -53,7 +53,7 @@ void CommanderTask::run()
     }
     msg::LocalMenu menu{};
     while (local_menu_.copy(menu)) {
-        local_menu_open_ = menu.state != 0;  // list or edit
+        local_menu_open_ = menu.state != 0;  // groups, list or edit
     }
     while (manual_input_.copy(manual_input_message_)) {
     }

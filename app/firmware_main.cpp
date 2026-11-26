@@ -63,6 +63,7 @@
 #ifdef CONFIG_LOCAL_DISPLAY
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/hal/display_bus.hpp>
+#include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/local_display.hpp>
 #include <vk/platform/soft_spi.hpp>
 #endif
@@ -422,6 +423,7 @@ static_assert(vk::hal::DisplayBus<DisplayBus>);
 DisplayBus display_bus;
 vk::core::StaticInstance<vk::drivers::Ssd1306> display_driver;
 vk::core::StaticInstance<vk::local_display::LocalDisplay> local_display;
+vk::local_display::DisplayProtection display_protection;
 
 #ifdef CONFIG_LOCAL_MENU
 using UserKey = vk::platform::InputLine<vk::board::user_key::pin>;
@@ -441,14 +443,15 @@ void start_local_display()
     const vk::local_display::LocalMenu* menu = nullptr;
 #ifdef CONFIG_LOCAL_MENU
     UserKey::init();
-    local_menu.emplace(vk::local_display::LocalMenuTask::Config{.key_pressed = &user_key_pressed},
+    local_menu.emplace(vk::local_display::LocalMenuTask::Config{.key_pressed = &user_key_pressed,
+                                                               .protection = &display_protection},
                        vk::params::parameters(), vk::params::menu(), vk::core::work_queue(vk::core::WorkQueueTier::Slow));
     local_menu->start();
     menu = &local_menu->menu();
 #endif
     display_bus.init();
     display_driver.emplace(vk::hal::DisplayDevice(display_bus));
-    local_display.emplace(*display_driver, menu, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
+    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
     local_display->start();
 }
 #endif

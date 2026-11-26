@@ -52,6 +52,7 @@ void Ssd1306::set_reset(bool active)
         com_reversed_ = false;
         inverted_ = false;
         all_on_ = false;
+        contrast_ = 0x7F;
         page_ = 0;
         column_ = 0;
         pending_arguments_ = 0;
@@ -67,16 +68,23 @@ void Ssd1306::write_commands(std::span<const std::uint8_t> bytes)
     if (in_reset_) {
         return;
     }
+    const bool was_displaying = displaying();
+    const std::uint8_t was_contrast = contrast_;
     for (const std::uint8_t byte : bytes) {
         commands_.push_back(byte);
         if (pending_arguments_ > 0) {
             --pending_arguments_;
             if (pending_command_ == 0x8D) {
                 charge_pump_ = (byte & 0x04U) != 0;
+            } else if (pending_command_ == 0x81) {
+                contrast_ = byte;
             }
             continue;
         }
         command(byte);
+    }
+    if (was_displaying != displaying() || was_contrast != contrast_) {
+        write_image();
     }
 }
 
@@ -171,21 +179,31 @@ std::string Ssd1306::pbm() const
     return out;
 }
 
+namespace {
+
+// Replaces `path` with `content` in one rename, so a reader never sees half a file.
+void write_atomically(const std::string& path, const std::string& content)
+{
+    const std::string temporary = path + ".tmp";
+    std::FILE* file = std::fopen(temporary.c_str(), "wb");
+    if (file == nullptr) {
+        return;
+    }
+    const bool written = std::fwrite(content.data(), 1, content.size(), file) == content.size();
+    if (std::fclose(file) == 0 && written) {
+        std::rename(temporary.c_str(), path.c_str());
+    }
+}
+
+}  // namespace
+
 void Ssd1306::write_image() const
 {
     if (image_path_.empty()) {
         return;
     }
-    const std::string temporary = image_path_ + ".tmp";
-    std::FILE* file = std::fopen(temporary.c_str(), "wb");
-    if (file == nullptr) {
-        return;
-    }
-    const std::string image = pbm();
-    const bool written = std::fwrite(image.data(), 1, image.size(), file) == image.size();
-    if (std::fclose(file) == 0 && written) {
-        std::rename(temporary.c_str(), image_path_.c_str());
-    }
+    write_atomically(image_path_ + ".contrast", std::to_string(contrast_) + "\n");
+    write_atomically(image_path_, pbm());
 }
 
 }  // namespace vk::sim

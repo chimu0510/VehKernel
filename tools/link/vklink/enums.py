@@ -197,8 +197,9 @@ class MenuState(enum.IntEnum):
     """The local menu's state (ADR-0022)."""
 
     CLOSED = 0
-    LIST = 1  # choosing an item
-    EDIT = 2  # changing an item's value
+    LIST = 1  # choosing a parameter of a group
+    EDIT = 2  # changing a parameter's value
+    GROUPS = 3  # choosing a group
 
 
 class Mode(enum.IntEnum):

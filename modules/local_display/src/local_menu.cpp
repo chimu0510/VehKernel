@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <vk/local_display/local_menu.hpp>
 
+#include <vk/local_display/icons.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -13,7 +16,6 @@ namespace vk::local_display {
 
 namespace {
 
-constexpr std::size_t list_lines = 6;  // lines 1 to 6 hold the list
 
 std::string_view result_name(core::ParamResult result)
 {
@@ -129,12 +131,20 @@ LocalMenu::LocalMenu(core::Parameters& parameters, std::span<const core::MenuPar
 {
     for (std::size_t i = 0; i < menu_.size(); ++i) {
         boot_values_.at(i) = parameters_.get(menu_[i].index);
+        // A group is a run of entries with the same group name.
+        if (group_count_ == 0 || groups_.at(group_count_ - 1).name != menu_[i].group) {
+            if (group_count_ == groups_.size()) {
+                break;  // more groups than the menu can hold: the rest stay out
+            }
+            groups_.at(group_count_++) = Group{.name = menu_[i].group, .first = i, .size = 0};
+        }
+        ++groups_.at(group_count_ - 1).size;
     }
 }
 
 std::uint16_t LocalMenu::item() const
 {
-    if (state_ == MenuState::Closed || position_ >= menu_.size()) {
+    if ((state_ != MenuState::List && state_ != MenuState::Edit) || position_ >= menu_.size()) {
         return no_item;
     }
     return menu_[position_].index;
@@ -160,63 +170,112 @@ bool LocalMenu::reboot_required() const
     return false;
 }
 
+bool LocalMenu::offers(MenuAction action) const
+{
+    if (action != MenuAction::Times10) {
+        return true;
+    }
+    return position_ < menu_.size() && parameters_.info(entry().index).enum_values.empty();
+}
+
 void LocalMenu::on_key(KeyEvent event, std::uint64_t now_us, bool armed)
 {
     if (event == KeyEvent::None) {
         return;
     }
     last_key_us_ = now_us;
+    if (event == KeyEvent::Press || event == KeyEvent::Release) {
+        key_down_ = event == KeyEvent::Press;
+        return;
+    }
+    // A Double or a Long still has the key down; a Click came after the release.
+    key_down_ = event == KeyEvent::Double || event == KeyEvent::Long;
+    if (armed && state_ != MenuState::Closed) {
+        close();  // a race between an arm request and a double click
+    }
     switch (state_) {
     case MenuState::Closed:
-        if (event == KeyEvent::Short) {
+        if (event == KeyEvent::Click) {
             page_ = next_page(page_);
-        } else if (event == KeyEvent::Long && !armed) {
-            state_ = MenuState::List;
-            position_ = 0;
-            last_result_.reset();
+        } else if (event == KeyEvent::Long) {
+            page_ = Page::Status;  // back to the overview
+        } else if (event == KeyEvent::Double) {
+            if (armed || group_count_ == 0) {
+                notice_until_us_ = now_us + notice_us;
+            } else {
+                state_ = MenuState::Groups;
+                group_ = 0;
+                last_result_.reset();
+            }
         }
         return;
+    case MenuState::Groups:
+        groups_key(event);
+        return;
     case MenuState::List:
-        if (event != KeyEvent::Repeat) {
-            last_result_.reset();
-        }
+        last_result_.reset();
         list_key(event);
         return;
     case MenuState::Edit:
-        edit_key(event);
+        edit_key(event, now_us);
         return;
+    }
+}
+
+void LocalMenu::groups_key(KeyEvent event)
+{
+    if (event == KeyEvent::Click) {
+        group_ = (group_ + 1) % group_count_;
+    } else if (event == KeyEvent::Double) {
+        state_ = MenuState::List;
+        position_ = groups_.at(group_).first;
+    } else if (event == KeyEvent::Long) {
+        close();
     }
 }
 
 void LocalMenu::list_key(KeyEvent event)
 {
-    if (event == KeyEvent::Short) {
-        position_ = (position_ + 1) % (menu_.size() + 1);
-    } else if (event == KeyEvent::Long) {
-        if (position_ >= menu_.size()) {
-            close();
-            return;
-        }
+    const Group& group = groups_.at(group_);
+    if (event == KeyEvent::Click) {
+        position_ = group.first + ((position_ - group.first + 1) % group.size);
+    } else if (event == KeyEvent::Double) {
         state_ = MenuState::Edit;
         action_ = MenuAction::Increase;
+        times_ten_ = false;
+        result_until_us_ = 0;
         staged_ = parameters_.get(entry().index);
+    } else if (event == KeyEvent::Long) {
+        state_ = MenuState::Groups;
     }
 }
 
-void LocalMenu::edit_key(KeyEvent event)
+void LocalMenu::next_action()
 {
-    if (event == KeyEvent::Short) {
-        action_ = static_cast<MenuAction>((static_cast<std::size_t>(action_) + 1) % menu_action_count);
+    do {
+        action_ = static_cast<MenuAction>((static_cast<std::size_t>(action_) + 1) % (static_cast<std::size_t>(MenuAction::Save) + 1));
+    } while (!offers(action_));
+}
+
+void LocalMenu::edit_key(KeyEvent event, std::uint64_t now_us)
+{
+    if (result_showing()) {
+        // Any gesture ends the display of the result and returns to the list.
+        result_until_us_ = 0;
+        state_ = MenuState::List;
         return;
     }
-    const bool stepping = action_ == MenuAction::Increase || action_ == MenuAction::Decrease;
-    if (event == KeyEvent::Repeat) {
-        // Only + and - repeat; Save and the others run once per press.
-        if (stepping) {
-            step(action_ == MenuAction::Increase ? 1 : -1);
-        }
-        return;
+    if (event == KeyEvent::Click) {
+        next_action();
+    } else if (event == KeyEvent::Double) {
+        run_action(now_us);
+    } else if (event == KeyEvent::Long) {
+        state_ = MenuState::List;  // discards the staged value
     }
+}
+
+void LocalMenu::run_action(std::uint64_t now_us)
+{
     switch (action_) {
     case MenuAction::Increase:
         step(1);
@@ -224,16 +283,16 @@ void LocalMenu::edit_key(KeyEvent event)
     case MenuAction::Decrease:
         step(-1);
         return;
+    case MenuAction::Times10:
+        times_ten_ = !times_ten_;
+        return;
     case MenuAction::Default:
         staged_ = parameters_.info(entry().index).default_value;
         return;
     case MenuAction::Save:
         last_result_ = parameters_.set(entry().index, staged_);
         last_parameter_ = entry().index;
-        state_ = MenuState::List;
-        return;
-    case MenuAction::Cancel:
-        state_ = MenuState::List;
+        result_until_us_ = now_us + result_show_us;
         return;
     }
 }
@@ -241,6 +300,7 @@ void LocalMenu::edit_key(KeyEvent event)
 void LocalMenu::step(int direction)
 {
     const core::ParamInfo& info = parameters_.info(entry().index);
+    const int count = times_ten_ ? 10 : 1;
     if (!info.enum_values.empty()) {
         const std::ptrdiff_t last = static_cast<std::ptrdiff_t>(info.enum_values.size()) - 1;
         const std::ptrdiff_t position = std::clamp<std::ptrdiff_t>(
@@ -250,7 +310,7 @@ void LocalMenu::step(int direction)
     }
     if (info.type == core::ParamType::Int32) {
         const std::int64_t next = static_cast<std::int64_t>(staged_.as_int()) +
-                                  (static_cast<std::int64_t>(direction) * entry().step.as_int());
+                                  (static_cast<std::int64_t>(direction) * count * entry().step.as_int());
         staged_ = core::ParamValue::from_int(static_cast<std::int32_t>(
             std::clamp<std::int64_t>(next, info.min.as_int(), info.max.as_int())));
         return;
@@ -258,7 +318,7 @@ void LocalMenu::step(int direction)
     // Numbers stay on the grid of steps from the minimum, so 0.1 + 0.1 shows 0.2.
     const double minimum = info.min.as_float();
     const double size = entry().step.as_float();
-    const double steps = std::round((static_cast<double>(staged_.as_float()) - minimum) / size) + direction;
+    const double steps = std::round((static_cast<double>(staged_.as_float()) - minimum) / size) + (direction * count);
     const double next = std::clamp(minimum + (steps * size), minimum, static_cast<double>(info.max.as_float()));
     staged_ = core::ParamValue::from_float(static_cast<float>(next));
 }
@@ -270,66 +330,219 @@ void LocalMenu::tick(std::uint64_t now_us, bool armed)
     }
     if (armed || now_us - last_key_us_ >= idle_close_us) {
         close();
+        return;
+    }
+    if (result_showing() && now_us >= result_until_us_) {
+        result_until_us_ = 0;
+        state_ = MenuState::List;
     }
 }
 
 void LocalMenu::close()
 {
     state_ = MenuState::Closed;
+    group_ = 0;
     position_ = 0;
     action_ = MenuAction::Increase;
+    times_ten_ = false;
+    result_until_us_ = 0;
 }
 
-void render_menu(const LocalMenu& menu, TextScreen& screen)
+namespace {
+
+// The screen's layout, in pixels: one pixel of margin on the right and at the
+// bottom, so the image can move by a pixel (display protection) without losing
+// any of it.
+constexpr int left = 1;
+constexpr int right = 125;      // the last column of text
+constexpr int title_y = 1;
+constexpr int rule_y = 9;
+constexpr int first_row_y = 11;
+constexpr int row_pitch = 9;    // a row of text and the highlight around it
+constexpr int visible_rows = 5;
+constexpr int hint_y = 56;
+constexpr int box_y = 44;
+constexpr int box_height = 11;
+
+int text_right(Canvas& canvas, int y, std::string_view text, bool on = true)
 {
-    screen.clear();
-    const auto entries = menu.entries();
+    const int x = right + 1 - text_width(text.size());
+    canvas.text(x, y, text, on);
+    return x;
+}
+
+// A row of the lists: `label` left, `value` right, highlighted when selected.
+void draw_row(Canvas& canvas, int y, std::string_view label, std::string_view value, bool selected)
+{
+    if (selected) {
+        canvas.fill_rect(0, y - 1, right + 2, row_pitch);
+    }
+    canvas.text(left, y, label, !selected);
+    text_right(canvas, y, value, !selected);
+}
+
+void draw_title(Canvas& canvas, std::string_view title, std::string_view right_text)
+{
+    canvas.text(left, title_y, title);
+    if (!right_text.empty()) {
+        text_right(canvas, title_y, right_text);
+    }
+    canvas.hline(0, rule_y, right + 2);
+}
+
+// "n/m" for the title.
+ValueText count_text(std::size_t n, std::size_t m)
+{
+    return Text().add(static_cast<std::uint64_t>(n)).add("/").add(static_cast<std::uint64_t>(m)).result();
+}
+
+// The first row of a window of `visible_rows` that shows `cursor` of `count`.
+std::size_t window_start(std::size_t cursor, std::size_t count)
+{
+    const auto rows = static_cast<std::size_t>(visible_rows);
+    if (count <= rows || cursor < rows) {
+        return 0;
+    }
+    return std::min(cursor + 1 - rows, count - rows);
+}
+
+void draw_groups(const LocalMenu& menu, Canvas& canvas)
+{
+    draw_title(canvas, "SETTINGS", count_text(menu.group() + 1, menu.group_count()).view());
+    const std::size_t first = window_start(menu.group(), menu.group_count());
+    for (std::size_t row = 0; row < static_cast<std::size_t>(visible_rows) && first + row < menu.group_count(); ++row) {
+        const std::size_t group = first + row;
+        const ValueText size = Text().add("(").add(static_cast<std::uint64_t>(menu.group_size(group))).add(")").result();
+        draw_row(canvas, first_row_y + (static_cast<int>(row) * row_pitch), menu.group_name(group), size.view(),
+                 group == menu.group());
+    }
+    canvas.text(left, hint_y, "2X:OPEN HOLD:CLOSE");
+}
+
+void draw_list(const LocalMenu& menu, Canvas& canvas)
+{
+    const std::size_t group = menu.group();
+    const std::size_t first = menu.group_first(group);
+    const std::size_t size = menu.group_size(group);
+    draw_title(canvas, menu.group_name(group), count_text(menu.position() - first + 1, size).view());
     const core::Parameters& parameters = menu.parameters();
-    if (menu.state() == MenuState::List) {
-        screen.put(0, 0, "MENU");
-        if (menu.last_result()) {
-            screen.put_right(0, result_name(*menu.last_result()));
+    const std::size_t start = window_start(menu.position() - first, size);
+    for (std::size_t row = 0; row < static_cast<std::size_t>(visible_rows) && start + row < size; ++row) {
+        const std::size_t position = first + start + row;
+        const core::MenuParam& entry = menu.entries()[position];
+        const bool selected = position == menu.position();
+        const int y = first_row_y + (static_cast<int>(row) * row_pitch);
+        const ValueText value = format_value(parameters.info(entry.index), entry, parameters.get(entry.index));
+        draw_row(canvas, y, parameters.info(entry.index).name, value.view(), selected);
+        if (menu.needs_reboot(position)) {
+            // A reboot is needed for the value to take effect.
+            const int x = right + 1 - text_width(value.view().size()) - icon_size - 2;
+            canvas.bitmap(x, y, icon(Icon::Warning), !selected);
         }
-        const std::size_t count = entries.size() + 1;  // and Exit
-        const std::size_t first = menu.position() < list_lines ? 0 : menu.position() + 1 - list_lines;
-        for (std::size_t line = 0; line < list_lines && first + line < count; ++line) {
-            const std::size_t position = first + line;
-            screen.put(1 + line, 0, position == menu.position() ? ">" : " ");
-            screen.put(1 + line, 1,
-                       position < entries.size() ? parameters.info(entries[position].index).name : "EXIT");
-        }
-        if (menu.position() < entries.size()) {
-            const core::MenuParam& entry = entries[menu.position()];
-            Text value;
-            value.add("= ").add(format_value(parameters.info(entry.index), entry, parameters.get(entry.index)).view());
-            if (menu.needs_reboot(menu.position())) {
-                value.add(" REBOOT");
-            }
-            screen.put(7, 0, value.result().view());
-        } else {
-            screen.put(7, 0, "LONG PRESS: CLOSE");
-        }
-        return;
     }
-    if (menu.state() != MenuState::Edit) {
-        return;
+    if (const std::optional<core::ParamResult> saved = menu.last_result(); saved.has_value()) {
+        canvas.text(left, hint_y, result_name(saved.value()));
+    } else {
+        canvas.text(left, hint_y, "2X:EDIT HOLD:BACK");
     }
-    const core::MenuParam& entry = entries[menu.position()];
+}
+
+std::string_view action_label(const LocalMenu& menu, MenuAction action)
+{
+    const bool enumeration = !menu.parameters().info(menu.entries()[menu.position()].index).enum_values.empty();
+    switch (action) {
+    case MenuAction::Increase:
+        return enumeration ? "NEXT" : "+";
+    case MenuAction::Decrease:
+        return enumeration ? "PREV" : "-";
+    case MenuAction::Times10:
+        return "X10";
+    case MenuAction::Default:
+        return "DEF";
+    case MenuAction::Save:
+        return "SAVE";
+    }
+    return "";
+}
+
+void draw_edit(const LocalMenu& menu, Canvas& canvas)
+{
+    const core::MenuParam& entry = menu.entries()[menu.position()];
+    const core::Parameters& parameters = menu.parameters();
     const core::ParamInfo& info = parameters.info(entry.index);
-    screen.put(0, 0, "EDIT");
-    if (menu.needs_reboot(menu.position())) {
-        screen.put_right(0, "REBOOT");
+    draw_title(canvas, info.name, entry.unit);
+
+    if (info.enum_values.empty()) {
+        Text range;
+        range.add("RANGE ").add(format_value(info, entry, info.min).view()).add(" TO ").add(format_value(info, entry, info.max).view());
+        canvas.text(left, 12, range.result().view());
+    } else {
+        canvas.text(left, 12, "CHOOSE ONE");
     }
-    screen.put(1, 0, info.name);
-    screen.put(2, 0, Text().add("NOW ").add(format_value(info, entry, parameters.get(entry.index)).view()).result().view());
-    screen.put(3, 0, Text().add("NEW ").add(format_value(info, entry, menu.staged()).view()).result().view());
-    // The actions, with carets under the one a long press runs.
-    screen.put(5, 0, "+ - DEF SAVE CANCEL");
-    static constexpr std::array<std::pair<std::size_t, std::string_view>, menu_action_count> carets{
-        {{0, "^"}, {2, "^"}, {4, "^^^"}, {8, "^^^^"}, {13, "^^^^^^"}}};
-    const auto& caret = carets.at(static_cast<std::size_t>(menu.action()));
-    screen.put(6, caret.first, caret.second);
-    screen.put(7, 0, "SHORT: NEXT LONG: DO");
+    canvas.text(left, 22, Text().add("NOW  ").add(format_value(info, entry, parameters.get(entry.index)).view()).result().view());
+    canvas.text(left, 32, Text().add("NEW  ").add(format_value(info, entry, menu.staged()).view()).result().view());
+    if (info.enum_values.empty()) {
+        text_right(canvas, 32, menu.times_ten() ? "STEP X10" : "STEP X1");
+    }
+
+    const std::optional<core::ParamResult> saved = menu.last_result();
+    if (menu.result_showing() && saved.has_value()) {
+        // The result of SAVE, in place of the actions.
+        canvas.fill_rect(0, box_y, right + 2, box_height);
+        const std::string_view result = result_name(saved.value());
+        canvas.text(left + 2, box_y + 2,
+                    saved.value() == core::ParamResult::Ok ? result : Text().add("REFUSED: ").add(result).result().view(),
+                    false);
+        if (menu.needs_reboot(menu.position())) {
+            canvas.text(left, hint_y, "REBOOT NEEDED");
+        }
+        return;
+    }
+    int x = left;
+    for (std::size_t i = 0; i <= static_cast<std::size_t>(MenuAction::Save); ++i) {
+        const auto action = static_cast<MenuAction>(i);
+        if (!menu.offers(action)) {
+            continue;
+        }
+        const std::string_view label = action_label(menu, action);
+        const int width = text_width(label.size()) + 4;
+        const bool selected = action == menu.action();
+        if (selected) {
+            canvas.fill_rect(x, box_y, width, box_height);
+        } else {
+            canvas.rect(x, box_y, width, box_height);
+        }
+        canvas.text(x + 2, box_y + 2, label, !selected);
+        x += width + 3;
+    }
+    canvas.text(left, hint_y, menu.needs_reboot(menu.position()) ? "REBOOT NEEDED" : "2X:DO HOLD:DISCARD");
+}
+
+}  // namespace
+
+void render_menu(const LocalMenu& menu, Canvas& canvas)
+{
+    canvas.clear();
+    switch (menu.state()) {
+    case MenuState::Closed:
+        return;
+    case MenuState::Groups:
+        draw_groups(menu, canvas);
+        return;
+    case MenuState::List:
+        draw_list(menu, canvas);
+        return;
+    case MenuState::Edit:
+        draw_edit(menu, canvas);
+        return;
+    }
+}
+
+void draw_key_indicator(const LocalMenu& menu, Canvas& canvas)
+{
+    if (menu.key_down()) {
+        canvas.fill_circle(123, 59, 2);
+    }
 }
 
 }  // namespace vk::local_display

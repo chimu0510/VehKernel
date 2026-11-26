@@ -27,8 +27,9 @@ are skipped. sim-power cuts or restores SITL's simulated actuator power.
 reboot restarts the board, and reboot --bootloader restarts it into the
 bootloader (ADR-0023); both are refused while armed, and the board resets
 just after it replies.
-key presses SITL's simulated user key (spec 0007): short for 0.1 s, long for
-1.1 s, or hold for the given time; it prints the local menu's state after.
+key presses SITL's simulated user key (spec 0016): click (down 0.1 s), double
+(two clicks 0.1 s apart), long (down 1.1 s) or hold for the given time; it
+prints the local menu's state after.
 sim-gamepad sets SITL's simulated gamepad (spec 0010): its sticks and the
 buttons held, for a given time if asked (then centred and released), or
 disconnects it with --off; it prints manual_control_input after.
@@ -251,23 +252,26 @@ def run_bringup(monitor: LinkMonitor, args: argparse.Namespace) -> int:
     return 0 if all(item.passed for item in reply.outputs) else 1
 
 
-# How long the key command holds the simulated user key down: a short press
-# releases before 1 s, a long press holds past it (spec 0007).
-KEY_SHORT_S = 0.1
-KEY_LONG_S = 1.1
-# How long to listen after a release, for local_menu to report the result.
-KEY_SETTLE_S = 0.5
+# How long to listen after a release, for local_menu to report the result: past the 250 ms
+# the firmware waits for a second press before it takes a press for a click.
+KEY_SETTLE_S = 0.6
 
 
 def run_key(monitor: LinkMonitor, args: argparse.Namespace) -> int:
     """The key command: press SITL's simulated user key, then print the local menu's state."""
-    duration = {"short": KEY_SHORT_S, "long": KEY_LONG_S}.get(args.press, args.hold_s)
-    if duration is None or duration <= 0:
+    if args.press == "hold" and (args.hold_s is None or args.hold_s <= 0):
         print("error: key hold needs a positive duration in seconds", file=sys.stderr)
         return 2
-    monitor.press_key(duration)
+    if args.press == "click":
+        monitor.click_key()
+    elif args.press == "double":
+        monitor.double_click_key()
+    elif args.press == "long":
+        monitor.long_press_key()
+    else:
+        monitor.press_key(args.hold_s)
     monitor.run(KEY_SETTLE_S)
-    print(f"key press={args.press} duration_s={duration:g}")
+    print(f"key press={args.press}" + (f" duration_s={args.hold_s:g}" if args.press == "hold" else ""))
     menus = monitor.latest("local_menu")
     if not menus:
         print("FAIL: no local_menu from the MCU; is the local menu built in?", file=sys.stderr)
@@ -514,7 +518,7 @@ def main() -> int:
     sim_power = commands.add_parser("sim-power", help="SITL only: cut or restore the simulated actuator power")
     sim_power.add_argument("state", choices=["on", "off"])
     key = commands.add_parser("key", help="SITL only: press the simulated user key")
-    key.add_argument("press", choices=["short", "long", "hold"])
+    key.add_argument("press", choices=["click", "double", "long", "hold"])
     key.add_argument("hold_s", type=float, nargs="?", metavar="SECONDS", help="how long to hold, with hold")
     drive = commands.add_parser("drive", help="arm and drive the wheels for a while, then disarm")
     drive.add_argument("speeds", type=parse_speeds, metavar="W1,W2,W3,W4",

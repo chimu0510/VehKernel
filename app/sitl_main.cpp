@@ -33,7 +33,8 @@
 // Its four motors can be wired the wrong way round with --reversed-motor,
 // once per output, for the bring-up case.
 // Its display is a simulated SSD1306; --display writes what it shows to a
-// PBM file after every change (ADR-0022). Its user key is pressed and
+// PBM file after every change, black while the display is off, with its
+// contrast in <path>.contrast (ADR-0022, spec 0016). Its user key is pressed and
 // released by the Link's sim_user_key frame, and its gamepad, disconnected
 // at start, is set by the sim_gamepad frame (spec 0010).
 // A reboot request over the Link ends the run at once, without the report,
@@ -71,6 +72,7 @@
 #ifdef CONFIG_LOCAL_DISPLAY
 #include <vk/drivers/ssd1306.hpp>
 #include <vk/hal/display_bus.hpp>
+#include <vk/local_display/display_protection.hpp>
 #include <vk/local_display/local_display.hpp>
 #endif
 #ifdef CONFIG_LOCAL_MENU
@@ -450,6 +452,7 @@ void start_actuators()
 #ifdef CONFIG_LOCAL_DISPLAY
 vk::core::StaticInstance<vk::drivers::Ssd1306> display_driver;
 vk::core::StaticInstance<vk::local_display::LocalDisplay> local_display;
+vk::local_display::DisplayProtection display_protection;
 #ifdef CONFIG_LOCAL_MENU
 vk::core::StaticInstance<vk::local_display::LocalMenuTask> local_menu;
 #endif
@@ -463,13 +466,14 @@ void start_local_display(const Options& options)
     }
     const vk::local_display::LocalMenu* menu = nullptr;
 #ifdef CONFIG_LOCAL_MENU
-    local_menu.emplace(vk::local_display::LocalMenuTask::Config{.key_pressed = &vk::platform::user_key_pressed},
+    local_menu.emplace(vk::local_display::LocalMenuTask::Config{.key_pressed = &vk::platform::user_key_pressed,
+                                                               .protection = &display_protection},
                        vk::params::parameters(), vk::params::menu(), vk::core::work_queue(vk::core::WorkQueueTier::Slow));
     local_menu->start();
     menu = &local_menu->menu();
 #endif
     display_driver.emplace(vk::hal::DisplayDevice(vk::platform::display()));
-    local_display.emplace(*display_driver, menu, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
+    local_display.emplace(*display_driver, menu, display_protection, vk::core::work_queue(vk::core::WorkQueueTier::Slow));
     local_display->start();
 }
 #endif

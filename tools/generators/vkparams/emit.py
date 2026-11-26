@@ -143,8 +143,8 @@ def params_source(groups: list[Group], params: list[Param]) -> str:
     for index, param in menu:
         step = _value(param, param.menu_step) if param.menu_step is not None else "{}"
         names = _names_array(param) if param.is_enum else "{}"
-        out.append(f'    {{.index = {index}, .step = {step}, .value_names = {names}, .group = "{param.menu_group}"}},'
-                   f"  // {param.name}")
+        out.append(f'    {{.index = {index}, .step = {step}, .value_names = {names}, .group = "{param.menu_group}", '
+                   f'.unit = "{param.unit or ""}"}},  // {param.name}')
     out += [
         "}};",
         "",

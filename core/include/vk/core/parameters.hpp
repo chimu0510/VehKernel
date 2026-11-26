@@ -89,6 +89,7 @@ struct MenuParam {
     ParamValue step;      // of + and -, for a number; unused for an enum
     std::span<const std::string_view> value_names;  // an enum's, in the order of ParamInfo::enum_values
     std::string_view group;  // the menu group's name, such as "ATTITUDE"
+    std::string_view unit;   // such as "deg", empty for none
 };
 
 // Why a change was refused; also what a Link reports back. Declared in

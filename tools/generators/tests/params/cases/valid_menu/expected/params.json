@@ -1,6 +1,6 @@
 {
   "generator": "tools/generators/generate_params.py",
-  "set_hash": "0x899AC1FAD1EB9EFD",
+  "set_hash": "0x12DCADA65EC455BC",
   "parameters": [
     {
       "name": "MA_COUNT",
@@ -9,7 +9,7 @@
       "default": 3,
       "min": 0,
       "max": 10,
-      "unit": null,
+      "unit": "pcs",
       "description": "A count in the local menu.",
       "reboot_required": false,
       "locked_when_armed": false,

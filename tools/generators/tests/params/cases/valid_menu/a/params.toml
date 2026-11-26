@@ -19,6 +19,7 @@ type = "INT32"
 default = 3
 min = 0
 max = 10
+unit = "pcs"
 description = "A count in the local menu."
 menu = true
 menu_group = "ATTITUDE"

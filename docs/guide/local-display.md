@@ -14,11 +14,18 @@ The local display shows three pages of 21 columns by 8 lines, whose values chang
 
 ## User key and local menu
 
-A short press (released before 1 s) switches pages, armed or disarmed. A long press (held 1 s) while disarmed opens the menu, and **arming is refused with "local menu open" while it is open**. The menu lists the menu parameters by name, then EXIT; the value of the one under the cursor is on the bottom line:
+The key has three gestures: a **click** (released, with no second press within 250 ms) moves on, a **double click** (two presses within 250 ms) confirms, and a **long press** (held 1 s, acting while it is still held) goes back. A press shows on the panel at once, as a dot at the bottom right corner. A key pressed at boot does nothing until it is released, and a key held down or stuck acts at most once.
 
-- In the list, a short press moves to the next item; a long press edits it, or on EXIT closes the menu.
-- In an edit, the screen shows the current value (NOW) and a staged value (NEW). A short press moves the caret through `+`, `-`, `DEF`, `SAVE` and `CANCEL`; a long press runs the one under it. `+` and `-` step by the parameter's menu step within its range, or through an enum's values, and repeat every 0.2 s while the key stays held. `DEF` stages the default. Nothing is written until `SAVE`, which goes through the same parameter checks as a Link and shows `SAVED` or why it was refused; every connected Link sees the change. A changed parameter that needs a reboot shows `REBOOT`.
+Armed, a click switches pages, a double click only shows that the menu needs the vehicle disarmed, and a long press returns to the first page. Disarmed, a click switches pages, and a double click opens the menu, and **arming is refused with "local menu open" while it is open**. The menu lists groups of menu parameters, then the parameters of a group:
+
+- At the groups, a click moves to the next group, wrapping around; a double click enters the group; a long press closes the menu, back to the page it was opened from.
+- In a group, a click moves to the next parameter, wrapping around, and the value of each is on its line; a double click edits it; a long press goes back to the groups.
+- In an edit, the screen shows the unit, the range, the current value (NOW) and a staged value (NEW), and a row of actions: `+`, `-`, `X10` (the step becomes ten menu steps), `DEF` and `SAVE` for a number, `NEXT`, `PREV`, `DEF` and `SAVE` for an enum. A click moves to the next action and a double click runs it; a long press discards the staged value and goes back. `+` and `-` step by the parameter's menu step within its range, or through an enum's values. `DEF` stages the default. Nothing is written until `SAVE`, which goes through the same parameter checks as a Link, shows `SAVED` or why it was refused for a second and returns to the group; every connected Link sees the change. A changed parameter that needs a reboot shows `REBOOT NEEDED`.
 - The menu closes by itself after 30 s without a key press, discarding a staged edit, and at once if the vehicle is armed.
+
+## Display protection
+
+While disarmed, the display dims after `DSP_DIM_S` seconds without a key press and turns off after `DSP_OFF_S` seconds (the image is kept; `0` never does); armed, it stays on and bright, and the menu does not count as idle. `DSP_BRIGHT` sets the normal contrast. A key press on a dimmed or dark display only wakes it. Arming or disarming, a mode change, the emergency stop engaging, a fault, an arming refusal and a takeover by the remote control wake it too. Every two minutes the whole image moves by one pixel along a four-step cycle, armed or not, unless `DSP_SHIFT` is off.
 
 ## Menu parameters
 
@@ -26,7 +33,7 @@ The menu parameters are `SENS_BOARD_ROT`, `SERIAL1_BAUD` and `SERIAL2_BAUD` (on 
 
 ## In SITL
 
-SITL simulates an SSD1306; `--display <path>` writes what it shows to a PBM image after every change, which any image viewer opens:
+SITL simulates an SSD1306; `--display <path>` writes what it shows to a PBM image after every change (black while the display is off), which any image viewer opens, and the contrast to `<path>.contrast`:
 
 ```bash
 build/sitl/app/vehkernel-sitl --duration 0 --display /tmp/vk-display.pbm
@@ -35,8 +42,9 @@ build/sitl/app/vehkernel-sitl --duration 0 --display /tmp/vk-display.pbm
 The [Link monitor](link-monitor.md) presses the simulated user key, then prints the menu's state, which the live view also shows:
 
 ```bash
+tools/link/link_monitor.py --udp 127.0.0.1:15600 key click
+tools/link/link_monitor.py --udp 127.0.0.1:15600 key double
 tools/link/link_monitor.py --udp 127.0.0.1:15600 key long
-tools/link/link_monitor.py --udp 127.0.0.1:15600 key short
 tools/link/link_monitor.py --udp 127.0.0.1:15600 key hold 5
 ```
 

@@ -269,6 +269,13 @@ def firmware_info_line(info) -> str:
             f"git={info.git_hash:08x} dirty={int(info.git_dirty)} board_id={info.board_id}")
 
 
+# How long the simulated user key is down for each gesture of the local display (spec 0016, ADR-0022):
+# a click is released before 1 s and no second press follows within 250 ms; the two presses of a double
+# click are 0.1 s apart; a long press is held past 1 s.
+KEY_CLICK_S = 0.1
+KEY_DOUBLE_GAP_S = 0.1
+KEY_LONG_S = 1.1
+
 # The local menu's states (local_menu.state) and what its last Save returned.
 MENU_STATES = value_texts(MenuState)
 NO_MENU_ITEM = 0xFFFF
@@ -915,6 +922,20 @@ class LinkMonitor:
         """
         self.connection.send(self.session.make_sim_user_key(True, duration_s))
         self.run(duration_s)
+
+    def click_key(self) -> None:
+        """SITL only: a click of the simulated user key: down for 0.1 s, then released (spec 0016)."""
+        self.press_key(KEY_CLICK_S)
+
+    def double_click_key(self) -> None:
+        """SITL only: a double click: two presses of 0.1 s, 0.1 s apart, well inside the 250 ms of the gesture."""
+        self.press_key(KEY_CLICK_S)
+        self.run(KEY_DOUBLE_GAP_S)
+        self.press_key(KEY_CLICK_S)
+
+    def long_press_key(self) -> None:
+        """SITL only: a long press: down for 1.1 s, past the 1 s the firmware waits, which acts while it is held."""
+        self.press_key(KEY_LONG_S)
 
     def send_topic(self, name: str, message: object, instance: int = 0) -> None:
         """Sends a message as inbound topic data; the MCU drops it unless its topic map declares it inbound.
