@@ -157,6 +157,9 @@ jobs:
         run: pip install --no-deps -r requirements-py310.txt
 
       # Run unit tests on Python 3.10 from the unpacked bundle (spec 0014 Seam B, ADR-0026).
+      # The tools the bundle leaves out have their tests left out too: replay.py needs
+      # the native replay binary, and deploy.py runs on the development host (#199);
+      # ctest runs both tests in the build job.
       - name: Run host tool unit tests on Python 3.10
         working-directory: bundle
         env:
@@ -166,4 +169,5 @@ jobs:
         run: |
           python -m pytest -q -p no:cacheprovider \
             --ignore=tools/log/tests/test_replay.py \
+            --ignore=tools/flash/tests/test_deploy.py \
             tools/link/tests tools/log/tests tools/flash/tests
