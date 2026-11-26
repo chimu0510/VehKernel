@@ -122,7 +122,7 @@ Every output is stamped with the MCU's sample time on the companion computer's c
 
 | Topic | Type | Direction | Contents |
 |---|---|---|---|
-| `/odom` | `nav_msgs/Odometry` | out | Pose and velocity of `base_link` in `odom`, with covariances from the estimator's variances; unknown entries are large |
+| `/odom` | `nav_msgs/Odometry` | out | Pose and velocity of `base_link` in `odom`, with covariances from the estimator's variances; unknown entries are large, and the horizontal position's is kept positive semidefinite |
 | `/tf` | `tf2_msgs/TFMessage` | out | `odom` → `base_link` from the same data, unless `publish_tf` is false |
 | `/imu/data` | `sensor_msgs/Imu` | out | The IMU's angular velocity and acceleration in `base_link`, the orientation of the latest attitude estimate, covariances from `EKF_GYR_NOISE` and `EKF_ACC_NOISE`; sensor data QoS (best effort) |
 | `/vehkernel/vehicle_status` | `vehkernel_msgs/VehicleStatus` | out | Mode, armed, source in control, emergency stop, actuator power, arming refusal, disarm reason, reset cause |

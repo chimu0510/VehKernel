@@ -95,6 +95,31 @@ TEST(Outputs, NotANumberVarianceIsUnknown)
     EXPECT_DOUBLE_EQ(odom.pose.covariance[1], 0.0);
 }
 
+// The horizontal position block's determinant, east-east times north-north
+// less the correlation squared; below zero, the matrix has a negative eigenvalue.
+double horizontal_determinant(const nav_msgs::msg::Odometry& odom)
+{
+    const auto& pose = odom.pose.covariance;
+    return pose[0] * pose[7] - pose[1] * pose[6];
+}
+
+TEST(Outputs, ANearlySingularPositionCovarianceStaysPositiveSemidefinite)
+{
+    // Read from a C50C at rest (#198): in float32, the north-east correlation
+    // squared exceeds north-north times east-east by rounding.
+    auto sample = make_sample();
+    sample.position_variance = {3.6578e-6F, 1.2597e-6F, 4.3353e-7F};
+    const auto odom = make_odometry(sample, 0, FrameNames{});
+    EXPECT_GE(horizontal_determinant(odom), 0.0);
+    EXPECT_DOUBLE_EQ(odom.pose.covariance[1], odom.pose.covariance[6]);
+    EXPECT_NEAR(odom.pose.covariance[1], 1.2593e-6, 1e-9);  // the correlation, only trimmed
+
+    sample.position_variance = {0.04F, -0.5F, 0.09F};  // far outside: trimmed to -sqrt(0.04 * 0.09)
+    const auto negative = make_odometry(sample, 0, FrameNames{});
+    EXPECT_GE(horizontal_determinant(negative), 0.0);
+    EXPECT_NEAR(negative.pose.covariance[1], -0.06, 1e-9);
+}
+
 TEST(Outputs, FrameNamesAreParameters)
 {
     const auto odom = make_odometry(make_sample(), 0, FrameNames{"map", "chassis"});

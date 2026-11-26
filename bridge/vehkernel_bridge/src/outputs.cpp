@@ -92,10 +92,16 @@ nav_msgs::msg::Odometry make_odometry(const vk::msg::VehicleLocalOdometry& odome
 
     // Pose covariance. The MCU estimates the horizontal position (north-north,
     // north-east, east-east) and the heading; down, roll and pitch it does not.
+    // A correlation beyond sqrt(nn * ee) is not a covariance: the MCU's float32
+    // matrix, nearly singular while one direction is far better known than the
+    // other, gets there by rounding (#198). Trimmed, the block stays positive
+    // semidefinite, which robot_localization and RViz expect.
     const double nn = variance_or_unknown(odometry.position_variance[0]);
-    const auto ne = static_cast<double>(odometry.position_variance[1]);
     const double ee = variance_or_unknown(odometry.position_variance[2]);
-    const Mat3 position_ned{nn, std::isfinite(ne) ? ne : 0.0, 0, std::isfinite(ne) ? ne : 0.0, ee, 0, 0, 0, unknown_variance};
+    const auto ne_reported = static_cast<double>(odometry.position_variance[1]);
+    const double ne_bound = std::sqrt(nn * ee);
+    const double ne = std::isfinite(ne_reported) ? std::clamp(ne_reported, -ne_bound, ne_bound) : 0.0;
+    const Mat3 position_ned{nn, ne, 0, ne, ee, 0, 0, 0, unknown_variance};
     const Mat3 attitude_ned = diagonal(unknown_variance, unknown_variance, variance_or_unknown(odometry.heading_variance));
     set_block_diagonal(out.pose.covariance, frames::covariance_ned_to_enu(position_ned),
                        frames::covariance_ned_to_enu(attitude_ned));
