@@ -146,7 +146,11 @@ void LocalDisplay::run()
     if (menu_open) {
         canvas.clear();
         render_menu(*menu_, canvas);
-        draw_status_bar(canvas, {.status = inputs_.status, .links = inputs_.links, .manual = inputs_.manual, .page = page});
+        draw_status_bar(canvas, {.status = inputs_.status,
+                                 .links = inputs_.links,
+                                 .manual = inputs_.manual,
+                                 .arming_checks = inputs_.arming_checks,
+                                 .page = page});
     } else {
         render(page, inputs_, canvas);
         if (notice) {

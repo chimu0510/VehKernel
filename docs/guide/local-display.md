@@ -15,7 +15,7 @@ The top 8 pixels of every page and of every menu screen show what you need befor
 | Emergency stop icon | The emergency stop is engaged |
 | Link icons | One per Link: an icon for a Link whose handshake is up, a broken one for a Link that is down. The Link that is in control is drawn in inverse video |
 | Gamepad icon | A remote control is connected (inverse video while it is in control) |
-| Warning icon | The last arming request was refused; the reason is on the overview and the arming checks page |
+| Warning icon | The last arming request was refused and the refused check still fails; once it passes the icon goes, while the overview keeps naming the last refusal. A refusal with no failing check behind it, such as a request from a source that is not in control, shows no icon |
 | Fault icon | A fault is raised; its name is on the system page |
 | Page dots | Eight dots, one per page; the current page's dot is a filled square |
 

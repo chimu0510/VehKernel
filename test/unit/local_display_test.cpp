@@ -119,6 +119,9 @@ Inputs sample_inputs()
     status.disarm_reason = 3;
     status.reset_cause = 4;
     inputs.status = status;
+    vk::msg::ArmingChecks checks{};
+    checks.failing = 1U << 2;  // the emergency stop is still engaged: the refusal is current
+    inputs.arming_checks = checks;
     inputs.attitude = make_attitude(10.0F, -20.5F, 135.0F);
     inputs.odometry = make_odometry();
     inputs.links.at(0) = make_link(2);
@@ -147,9 +150,20 @@ std::string page_image(Page page, const Inputs& inputs)
 }
 
 StatusBarInputs bar(std::optional<vk::msg::VehicleStatus> status, std::array<std::optional<vk::msg::LinkStatus>, 2> links,
-                    std::optional<vk::msg::ManualControlInput> manual, Page page)
+                    std::optional<vk::msg::ManualControlInput> manual, Page page,
+                    std::optional<vk::msg::ArmingChecks> checks = std::nullopt)
 {
-    return {.status = status, .links = links, .manual = manual, .page = page};
+    return {.status = status, .links = links, .manual = manual, .arming_checks = checks, .page = page};
+}
+
+// An arming_checks sample in which the check of each given arming_result value fails.
+vk::msg::ArmingChecks failing_checks(std::initializer_list<unsigned> values)
+{
+    vk::msg::ArmingChecks checks{};
+    for (const unsigned value : values) {
+        checks.failing |= 1U << value;
+    }
+    return checks;
 }
 
 std::string bar_image(const StatusBarInputs& inputs)
@@ -245,7 +259,51 @@ TEST(LocalDisplayImages, StatusBarCompanionLink1InControlWithAnArmingRefusal)
     status.source = 1;
     status.arming_refusal = 7;
     expect_golden("bar_companion_refusal",
-                  bar_image(bar(status, {make_link(1), make_link(1)}, std::nullopt, Page::Links)));
+                  bar_image(bar(status, {make_link(1), make_link(1)}, std::nullopt, Page::Links, failing_checks({7}))));
+}
+
+TEST(LocalDisplayImages, StatusBarWarningGoesOnceTheRefusedCheckPasses)
+{
+    vk::msg::VehicleStatus status = make_status(vk::msg::Mode::Companion, false);
+    status.source = 1;
+    status.arming_refusal = 7;  // ACTUATOR_POWER_OFF: kept until the next arm request
+    // Another check fails, the refused one does not: the same image as without a refusal.
+    const std::string passed = bar_image(bar(status, {make_link(1), make_link(1)}, std::nullopt, Page::Links,
+                                             failing_checks({2})));
+    status.arming_refusal = 0;
+    EXPECT_EQ(passed, bar_image(bar(status, {make_link(1), make_link(1)}, std::nullopt, Page::Links)));
+    expect_golden("bar_companion_refusal_passed", passed);
+}
+
+TEST(LocalDisplayImages, StatusBarShowsNoWarningWithoutAnArmingChecksSample)
+{
+    vk::msg::VehicleStatus status = make_status(vk::msg::Mode::Companion, false);
+    status.source = 1;
+    status.arming_refusal = 7;
+    const std::string without = bar_image(bar(status, {}, std::nullopt, Page::Links));
+    status.arming_refusal = 0;
+    EXPECT_EQ(without, bar_image(bar(status, {}, std::nullopt, Page::Links)));
+}
+
+TEST(LocalDisplayImages, StatusBarShowsNoWarningForARefusalWithNoFailingCheck)
+{
+    vk::msg::VehicleStatus status = make_status(vk::msg::Mode::Companion, false);
+    status.arming_refusal = static_cast<std::uint8_t>(vk::msg::ArmingResult::NotInControl);
+    // The overview names it; no bit of arming_checks.failing stands for it now.
+    const std::string refused = bar_image(bar(status, {}, std::nullopt, Page::Links, failing_checks({})));
+    status.arming_refusal = 0;
+    EXPECT_EQ(refused, bar_image(bar(status, {}, std::nullopt, Page::Links, failing_checks({}))));
+}
+
+TEST(LocalDisplayImages, StatusBarIgnoresARefusalValueBeyondTheFailingBits)
+{
+    vk::msg::VehicleStatus status = make_status(vk::msg::Mode::Companion, false);
+    status.arming_refusal = 40;
+    vk::msg::ArmingChecks checks{};
+    checks.failing = 0xFFFFFFFFU;
+    const std::string beyond = bar_image(bar(status, {}, std::nullopt, Page::Links, checks));
+    status.arming_refusal = 0;
+    EXPECT_EQ(beyond, bar_image(bar(status, {}, std::nullopt, Page::Links, checks)));
 }
 
 TEST(LocalDisplayImages, StatusBarWithAFaultAndTheGamepadDisconnected)
@@ -255,7 +313,7 @@ TEST(LocalDisplayImages, StatusBarWithAFaultAndTheGamepadDisconnected)
     status.arming_refusal = 11;
     vk::msg::ManualControlInput manual{};
     manual.connected = false;
-    expect_golden("bar_fault", bar_image(bar(status, {}, manual, Page::System)));
+    expect_golden("bar_fault", bar_image(bar(status, {}, manual, Page::System, failing_checks({11}))));
 }
 
 TEST(LocalDisplayImages, StatusBarWithoutAStatus)
@@ -510,6 +568,7 @@ protected:
     {
         Inputs inputs = sample_inputs();
         inputs.links.at(1).reset();  // only the first Link is published here
+        inputs.arming_checks.reset();  // and no arming_checks sample: no warning icon
         inputs.frame = display_frame();
         return page_image(page, inputs);
     }
@@ -568,6 +627,7 @@ protected:
     {
         Inputs inputs = sample_inputs();
         inputs.links.at(1).reset();  // only the first Link is published here
+        inputs.arming_checks.reset();  // and no arming_checks sample: no warning icon
         inputs.frame = display_frame();
         return inputs;
     }
@@ -742,7 +802,7 @@ TEST_F(LocalDisplayWorkItemTest, TheDisplayNeverChangesPageByItself)
     faulty.arming_refusal = 7;
     status.publish(faulty);
     step(3'000'000);
-    // The page is still the overview; only the status bar's warning appears.
+    // The page is still the overview; only the status bar's fault icon appears (no arming_checks sample: no warning).
     EXPECT_EQ(menu.page(), Page::Overview);
     EXPECT_NE(panel.pbm(), expected_image(Page::Overview));
 }

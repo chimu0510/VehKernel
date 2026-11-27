@@ -5,14 +5,16 @@
 // an icon for each Link, a rising signal while it is connected, a cross while
 // it is not, in inverse video for the one in control; the gamepad icon while
 // the remote control is connected, in inverse video while it is in control; a
-// warning icon while an arming refusal is pending and a fault icon while a
-// fault is recorded; and at the right one dot per page, the current page's
+// warning icon while the refused arming check still fails (the last refusal
+// is not OK and its bit is set in arming_checks.failing) and a fault icon
+// while a fault is recorded; and at the right one dot per page, the current page's
 // larger. Every item has its own place, so nothing moves when another
 // appears.
 #pragma once
 
 #include <vk/local_display/graphics.hpp>
 #include <vk/local_display/pages.hpp>
+#include <vk/msg/arming_checks.hpp>
 #include <vk/msg/link_status.hpp>
 #include <vk/msg/manual_control_input.hpp>
 #include <vk/msg/vehicle_status.hpp>
@@ -27,6 +29,7 @@ struct StatusBarInputs {
     std::optional<msg::VehicleStatus> status;
     std::array<std::optional<msg::LinkStatus>, msg::LinkStatus::instances> links;
     std::optional<msg::ManualControlInput> manual;
+    std::optional<msg::ArmingChecks> arming_checks;  // none: no warning
     Page page = Page::Overview;
 };
 

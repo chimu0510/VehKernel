@@ -770,7 +770,7 @@ std::string panel_image(const LocalMenu& menu)
     // The status bar of a disarmed vehicle in STANDBY with no Link up, on the first page.
     vk::msg::VehicleStatus status{};
     status.source = vk::core::no_source;
-    vk::local_display::draw_status_bar(canvas, {.status = status, .links = {}, .manual = std::nullopt, .page = Page::Overview});
+    vk::local_display::draw_status_bar(canvas, {.status = status, .links = {}, .manual = std::nullopt, .arming_checks = std::nullopt, .page = Page::Overview});
     vk::local_display::draw_key_indicator(menu, canvas);
     driver.update(0);
     for (int i = 0; i < 4; ++i) {

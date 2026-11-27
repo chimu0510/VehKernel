@@ -34,6 +34,17 @@ void draw_icon(Canvas& canvas, int x, Icon which, bool marked = false)
     canvas.bitmap(x, 0, icon(which), !marked);
 }
 
+// The refusal is still current: not OK, and its check fails now. A refusal with no check behind it
+// (NOT_IN_CONTROL for another source, REBOOTING) never shows; the overview still names it.
+bool refusal_still_fails(const msg::VehicleStatus& status, const std::optional<msg::ArmingChecks>& checks)
+{
+    const std::uint8_t refusal = status.arming_refusal;
+    if (refusal == static_cast<std::uint8_t>(msg::ArmingResult::Ok) || !checks || refusal >= 32) {
+        return false;
+    }
+    return ((checks->failing >> refusal) & 1U) != 0;
+}
+
 void draw_page_dots(Canvas& canvas, Page current)
 {
     const int first = dots_right + 1 - (static_cast<int>(page_count) * dot_pitch) + 1;
@@ -76,7 +87,7 @@ void draw_status_bar(Canvas& canvas, const StatusBarInputs& inputs)
         if (s.emergency_stop) {
             draw_icon(canvas, estop_x, Icon::EmergencyStop);
         }
-        if (s.arming_refusal != static_cast<std::uint8_t>(msg::ArmingResult::Ok)) {
+        if (refusal_still_fails(s, inputs.arming_checks)) {
             draw_icon(canvas, refusal_x, Icon::Warning);
         }
         if (s.fault != static_cast<std::uint8_t>(msg::Fault::None)) {

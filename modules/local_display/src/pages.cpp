@@ -63,7 +63,11 @@ void render(Page page, const Inputs& inputs, Canvas& canvas)
                                   .board_name = inputs.board_name});
         break;
     }
-    draw_status_bar(canvas, {.status = inputs.status, .links = inputs.links, .manual = inputs.manual, .page = page});
+    draw_status_bar(canvas, {.status = inputs.status,
+                             .links = inputs.links,
+                             .manual = inputs.manual,
+                             .arming_checks = inputs.arming_checks,
+                             .page = page});
 }
 
 }  // namespace vk::local_display
