@@ -314,6 +314,9 @@ add_test(NAME bringup_runner
   COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${CMAKE_SOURCE_DIR}/tools/bringup/tests)
 add_test(NAME serial_flasher
   COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${CMAKE_SOURCE_DIR}/tools/flash/tests)
+add_test(NAME setup_tools
+  COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${CMAKE_SOURCE_DIR}/tools/setup/tests)
+set_tests_properties(setup_tools PROPERTIES ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 add_test(NAME bundle_packer
   COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider ${CMAKE_SOURCE_DIR}/tools/bundle/tests)
 add_test(NAME firmware_finalize

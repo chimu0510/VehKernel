@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Optional user systemd service for the Vehkernel ROS2 Bridge (ADR-0027, ADR-0028, spec 0017).
+# Install to ~/.config/systemd/user/vehkernel-bridge.service and configure via
+# ~/.config/vehkernel/bridge.env (see bridge.env.example). Enable at boot with:
+#   loginctl enable-linger "$USER"
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now vehkernel-bridge.service
+
+[Unit]
+Description=Vehkernel ROS2 Bridge
+
+[Service]
+Type=simple
+Environment=VK_BRIDGE_WORKSPACE=%h/vk_ws
+Environment=VK_BRIDGE_DEVICE=/dev/ttyACM0
+Environment=VK_BRIDGE_BAUD=921600
+EnvironmentFile=-%h/.config/vehkernel/bridge.env
+ExecStart=/bin/bash -c 'set -e; source /opt/ros/jazzy/setup.bash; source "$${VK_BRIDGE_WORKSPACE}/install/setup.bash"; exec ros2 run vehkernel_bridge bridge --ros-args -p transport:=serial -p serial_device:="$${VK_BRIDGE_DEVICE}" -p serial_baud:="$${VK_BRIDGE_BAUD}"'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

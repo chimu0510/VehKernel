@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Udev rules for Vehkernel debug probes and USB serial adapters (ADR-0028, spec 0017).
+# Install to /etc/udev/rules.d/99-vehkernel.rules and reload with:
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+
+ACTION!="add|change", GOTO="vehkernel_rules_end"
+
+# STMicroelectronics ST-Link V2, V2-1, and V3 debug probes (SWD / OpenOCD).
+# Setting ID_MM_DEVICE_IGNORE="1" prevents ModemManager from probing VCP interfaces.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3748", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="374b", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3752", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="374e", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="374f", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3753", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3754", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# ST-Link V2-1 and V3 virtual COM port (VCP) interfaces.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="3752", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374e", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374f", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="3753", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="3754", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# WCH CH9102F USB serial adapters (used on C50C V1.1 SERIAL1 and SERIAL2).
+# Keep ModemManager off the download circuit (RTS->BOOT0, DTR->NRST) and do NOT
+# attach a static SYMLINK here: both C50C V1.1 ports share the same VID:PID and
+# USB serial string, so a single symlink would collide.
+SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="55d4", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", MODE="0660", GROUP="dialout", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Optional: pin C50C V1.1 SERIAL1 (/dev/vehkernel-link) and SERIAL2 (/dev/vehkernel-download)
+# by physical USB port. First identify which /dev/ttyACM* is SERIAL1 (mcu_link instance=0)
+# and which is SERIAL2 (mcu_link instance=1):
+#   tools/link/link_monitor.py --serial /dev/ttyACM0 --check
+# Then inspect the physical USB port identifier:
+#   udevadm info -q property -n /dev/ttyACM0 | grep ID_PATH=
+#   udevadm info -a -n /dev/ttyACM0 | grep KERNELS
+#
+# Option A: pin by ENV{ID_PATH} (matches /dev/serial/by-path/):
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", ENV{ID_PATH}=="platform-xhci-hcd.0-usb-0:1:1.0", SYMLINK+="vehkernel-link"
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", ENV{ID_PATH}=="platform-xhci-hcd.0-usb-0:2:1.0", SYMLINK+="vehkernel-download"
+#
+# Option B: pin by KERNELS (USB bus-port path):
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", KERNELS=="1-1:1.0", SYMLINK+="vehkernel-link"
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", KERNELS=="1-2:1.0", SYMLINK+="vehkernel-download"
+
+LABEL="vehkernel_rules_end"

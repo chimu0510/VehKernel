@@ -1,0 +1,89 @@
+#!/usr/bin/env sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Worktree-safe Docker wrapper for the Vehkernel development container (ADR-0016, ADR-0028, spec 0017).
+set -eu
+
+DEFAULT_IMAGE="ghcr.io/chimu0510/vehkernel-dev:latest"
+FALLBACK_IMAGE="vehkernel-dev:latest"
+
+usage() {
+    printf 'Usage: vk <command> [args...]\n'
+    printf '\n'
+    printf 'Run a command inside the Vehkernel development container.\n'
+    printf 'Environment:\n'
+    printf '  VK_IMAGE  Container image to run (default: %s,\n' "$DEFAULT_IMAGE"
+    printf '            falling back to local %s if present)\n' "$FALLBACK_IMAGE"
+}
+
+if [ "$#" -eq 0 ]; then
+    usage >&2
+    exit 2
+fi
+
+case "$1" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+
+if ! command -v docker >/dev/null 2>&1; then
+    printf 'vk: docker is not installed or not in PATH; run tools/setup/vk_setup.py --role dev\n' >&2
+    exit 127
+fi
+
+if [ -n "${VK_IMAGE:-}" ]; then
+    image="$VK_IMAGE"
+elif docker image inspect "$DEFAULT_IMAGE" >/dev/null 2>&1; then
+    image="$DEFAULT_IMAGE"
+elif docker image inspect "$FALLBACK_IMAGE" >/dev/null 2>&1; then
+    image="$FALLBACK_IMAGE"
+else
+    printf 'vk: neither %s nor %s is available locally.\n' "$DEFAULT_IMAGE" "$FALLBACK_IMAGE" >&2
+    printf 'Pull the pre-built image:\n  docker pull %s\n' "$DEFAULT_IMAGE" >&2
+    printf 'Or build locally from the repository root:\n  docker build -t %s -f .devcontainer/Dockerfile .\n' "$FALLBACK_IMAGE" >&2
+    printf 'Or run:\n  tools/setup/vk_setup.py --role dev\n' >&2
+    exit 1
+fi
+
+git_common_dir=""
+if command -v git >/dev/null 2>&1; then
+    if git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+        :
+    elif git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null); then
+        case "$git_common_dir" in
+            /*) ;;
+            *) git_common_dir=$(cd "$git_common_dir" 2>/dev/null && pwd -P) || git_common_dir="" ;;
+        esac
+    else
+        git_common_dir=""
+    fi
+fi
+
+pwd_phys=$(pwd -P)
+mount_git_common=""
+if [ -n "$git_common_dir" ] && [ -d "$git_common_dir" ]; then
+    case "$git_common_dir" in
+        "$PWD"|"$pwd_phys"|"$PWD"/*|"$pwd_phys"/*) ;;
+        *) mount_git_common="$git_common_dir" ;;
+    esac
+fi
+
+set -- "$image" "$@"
+if [ -n "$mount_git_common" ]; then
+    set -- -v "$mount_git_common:$mount_git_common:ro" "$@"
+fi
+if [ -t 0 ] && [ -t 1 ]; then
+    set -- -t "$@"
+fi
+
+exec docker run --rm -i \
+    -u "$(id -u):$(id -g)" \
+    -e HOME=/tmp \
+    -e GIT_CONFIG_COUNT=1 \
+    -e GIT_CONFIG_KEY_0=safe.directory \
+    -e GIT_CONFIG_VALUE_0='*' \
+    --network host \
+    -v "$PWD:$PWD" \
+    -w "$PWD" \
+    "$@"

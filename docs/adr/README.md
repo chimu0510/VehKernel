@@ -50,3 +50,4 @@ ADRs are living records with no status field: each one always reads as the curre
 | [0025](0025-board-examples.md) | Examples are separate executables per board, ordered by a checked examples.toml |
 | [0026](0026-host-tools-bundle.md) | The host tools reach a companion computer as a bundle built with the firmware |
 | [0027](0027-ros2-bridge.md) | The Bridge is a C++ rclcpp node over the custom protocol, built against the generated codecs |
+| [0028](0028-host-environment-setup.md) | Host and companion setup uses a role-based Python 3.10+ stdlib CLI with udev and user systemd templates |
