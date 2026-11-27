@@ -195,3 +195,65 @@ jobs:
             --ignore=tools/flash/tests/test_deploy.py \
             --ignore=tools/setup/tests/test_templates.py \
             tools/link/tests tools/log/tests tools/flash/tests tools/setup/tests
+
+  # Verifies fresh-machine onboarding in clean Ubuntu 24.04 and Debian 12 containers
+  # without pre-installed compilers, ROS2, or rosdep state (spec 0017 Seam D, ADR-0028).
+  # Base images are referenced by the digest of their multi-arch index (ADR-0016);
+  # the Ubuntu 24.04 digest matches .devcontainer/Dockerfile.
+  setup-clean-os:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Clean Debian 12 (bookworm) supports --role flash and rejects unsupported roles
+      # with exit code 2 (ADR-0027, ADR-0028). Minimal python3 is installed first because
+      # debian:bookworm-slim omits Python.
+      # The script below is one single-quoted bash argument: no apostrophes in it.
+      - name: Verify flash setup on clean Debian 12
+        timeout-minutes: 10
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" \
+            debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc \
+            bash -eo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends python3
+              python3 -u /repo/tools/setup/vk_setup.py --role flash --yes
+              python3 -u /repo/tools/setup/vk_setup.py --role flash --check
+              for mode in --check --dry-run; do
+                set +e
+                out=$(python3 -u /repo/tools/setup/vk_setup.py --role companion "$mode" 2>&1)
+                rc=$?
+                set -e
+                printf "%s\n" "$out"
+                test "$rc" -eq 2
+                printf "%s\n" "$out" | grep -q "Ubuntu 24.04"
+              done
+            '
+
+      # Clean Ubuntu 24.04 (noble) has no build-essential, no ROS2, and no initialized
+      # rosdep. Minimal python3 is installed first because ubuntu:24.04 omits Python.
+      # Runs companion setup end-to-end, builds vehkernel_msgs and vehkernel_bridge
+      # from zero, and verifies --check exits 0.
+      # The script below is one single-quoted bash argument: no apostrophes in it.
+      - name: Verify companion setup and Bridge build on clean Ubuntu 24.04
+        timeout-minutes: 30
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" \
+            ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac \
+            bash -eo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              ! command -v g++ >/dev/null 2>&1
+              ! test -d /opt/ros
+              ! test -e /etc/ros/rosdep/sources.list.d/20-default.list
+              apt-get update
+              apt-get install -y --no-install-recommends python3
+              python3 -u /repo/tools/setup/vk_setup.py --role companion --yes \
+                --repo-dir /repo --workspace /tmp/vk_ws --build-bridge
+              test -x /tmp/vk_ws/install/vehkernel_bridge/lib/vehkernel_bridge/bridge
+              test -f /tmp/vk_ws/install/vehkernel_msgs/share/vehkernel_msgs/package.xml
+              python3 -u /repo/tools/setup/vk_setup.py --role companion --check \
+                --workspace /tmp/vk_ws --build-bridge
+              python3 -u /repo/tools/setup/vk_setup.py --role companion --check \
+                --workspace /tmp/vk_ws
+            '
