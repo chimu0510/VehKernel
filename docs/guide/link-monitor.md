@@ -4,14 +4,14 @@
 
 ## Connecting
 
-**To SITL.** Start SITL without a time limit in one terminal and the monitor in another:
+**To SITL.** Build the `sitl` preset (`vk cmake --preset sitl && vk cmake --build --preset sitl`), start SITL inside the development container in one terminal, and run the monitor in another on the host (or with `vk`):
 
 ```bash
-build/sitl/app/vehkernel-sitl --duration 0
+vk build/sitl/app/vehkernel-sitl --duration 0
 tools/link/link_monitor.py --udp 127.0.0.1:15600
 ```
 
-**To a board.** Plug a USB cable into a port that runs a Link, and the board's USB serial adapter appears on the host as a serial device, usually `/dev/ttyACM0` (your user needs the `dialout` group). Pass the Python decoders of the firmware build:
+**To a board.** Plug a USB cable into a port that runs a Link, and run the monitor on the **host** (`python3-serial`, `dialout`, and udev rules via `tools/setup/vk_setup.py --role flash`; [Environment setup](setup.md)). The board's USB serial adapter appears as a serial device, usually `/dev/ttyACM0`. From a git checkout, pass the Python decoders of the firmware build (automatic inside an unpacked Host Tools Bundle):
 
 ```bash
 tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/generated/schema/python
@@ -97,10 +97,10 @@ tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/gener
     --param-meta build/c50c-v1_1/generated/params/params.json param list
 ```
 
-Parameters that differ from their defaults are stored in internal Flash, entry by entry in two alternating sectors, and survive power loss and firmware updates (ADR-0012, ADR-0020). SITL keeps them in a simulated NOR Flash that follows the same rules. It starts blank at every run, so runs are reproducible; with `--param-file <path>` the Flash lives in that file and the parameters survive a restart:
+Parameters that differ from their defaults are stored in internal Flash, entry by entry in two alternating sectors, and survive power loss and firmware updates (ADR-0012, ADR-0020). SITL keeps them in a simulated NOR Flash that follows the same rules. It starts blank at every run, so runs are reproducible; with `--param-file <path>` the Flash lives in that file and the parameters survive a restart (store it under `build/` or `vendor/` when running through `vk` so it persists across container invocations and stays ignored by `reuse_lint`):
 
 ```bash
-build/sitl/app/vehkernel-sitl --duration 0 --param-file /tmp/vk-params.bin
+vk build/sitl/app/vehkernel-sitl --duration 0 --param-file build/vk-params.bin
 ```
 
 The live view and the `--check` summary show the `parameter_status` topic as a `param_status` line: the sector in use and its fill, changes not yet in Flash (`unsaved`), `reboot_required` changes waiting for a restart (`pending_reboot`), and stored entries skipped at boot because their parameter is gone, changed type, is out of range or was cut short by a power loss. `param list`, `param get` and `param set` mark a parameter `pending_reboot=1` or `unsaved=1` the same way.
@@ -111,10 +111,10 @@ The hardware check of the parameters (L4): set `ATT_KP` and `SENS_BOARD_ROT`, po
 
 ## Logging
 
-The `record` command records a ULog file over the Link with a log profile (spec 0011, ADR-0019); [Logging](logging.md) describes what the file holds, the profiles and replay:
+The `record` command records a ULog file over the Link with a log profile (spec 0011, ADR-0019); [Logging](logging.md) describes what the file holds, the profiles and replay. Save logs outside the repository root (for example under `/tmp/` or the git-ignored `vendor/` directory) so `reuse_lint` stays clean:
 
 ```bash
-tools/link/link_monitor.py --udp 127.0.0.1:15600 record log.ulg --profile estimator_replay --duration 30
+tools/link/link_monitor.py --udp 127.0.0.1:15600 record /tmp/log.ulg --profile estimator_replay --duration 30
 ```
 
 ## Running from a bundle
@@ -130,10 +130,10 @@ Explicit options and the `VK_MSG_PYTHON_DIR` and `VK_PARAM_METADATA` environment
 
 ## Firmware
 
-The firmware reports its version, commit, whether it was built from a tree with changes not committed, and the board ID on `firmware_info` once a second (ADR-0023). The live view and `--check` show it on their `firmware` line. `firmware` prints it once and exits non-zero when none arrives within `--wait` seconds (3 by default), as with firmware older than the topic:
+The firmware reports its version, commit, whether it was built from a tree with changes not committed, and the board ID on `firmware_info` once a second (ADR-0023). The live view and `--check` show it on their `firmware` line. `firmware` prints it once and exits non-zero when none arrives within `--wait` seconds (3 by default), as with firmware older than the topic (pass `--msg-dir` from a git checkout; automatic inside an unpacked Host Tools Bundle):
 
 ```bash
-tools/link/link_monitor.py --serial /dev/ttyACM0 firmware
+tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/generated/schema/python firmware
 ```
 
 ```text

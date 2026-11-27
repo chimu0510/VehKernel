@@ -39,29 +39,30 @@ The [ADR index](docs/adr/README.md) lists every decision and why it was made.
 
 ## Quick start
 
-Vehkernel builds in a container: `cmake` and `ctest` run inside the image that `.devcontainer/Dockerfile` builds, and fail on the host ([Building](docs/guide/building.md#development-environment)). Clone with the submodules, build the image, then build and run SITL for 5 s inside it:
+Vehkernel builds in a container: `cmake` and `ctest` run inside the pinned image published to `ghcr.io/chimu0510/vehkernel-dev:latest` (built from `.devcontainer/Dockerfile`), and fail on the host ([Environment setup](docs/guide/setup.md), [Building](docs/guide/building.md#development-environment)). Clone with submodules, set up the `dev` role (which checks Docker, pulls the pre-built image, and installs the worktree-safe `vk` wrapper to `~/.local/bin/vk`), then build and run SITL for 5 s:
 
 ```bash
 git clone --recurse-submodules https://github.com/chimu0510/VehKernel.git
 cd VehKernel
-docker build -t vehkernel-dev -f .devcontainer/Dockerfile .
-vk() { docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" --network host vehkernel-dev "$@"; }
+tools/setup/vk_setup.py --role dev
 vk cmake --preset sitl
 vk cmake --build --preset sitl
 vk build/sitl/app/vehkernel-sitl --duration 5
 ```
 
-In VS Code, "Reopen in Container" instead, and run the commands without `vk`.
+If Docker is already installed and you prefer not to run `vk_setup.py`, pull `ghcr.io/chimu0510/vehkernel-dev:latest` directly and run `./tools/setup/vk` (or use `--role dev --build-local` to build locally). In VS Code, "Reopen in Container" instead, and run the commands without `vk`.
 
-To watch it live, start SITL with `--duration 0` and connect the Link monitor from another terminal:
+To watch SITL live, start SITL with `--duration 0` and connect the Link monitor from another terminal on the host (requires only Python 3.10+ for UDP, or `python3-serial` for `--serial` against a board; you can also run it inside the container with `vk`):
 
 ```bash
 tools/link/link_monitor.py --udp 127.0.0.1:15600
 ```
 
+`link_monitor.py` reads generated Python decoders from `build/sitl/generated/schema/python` by default. If you built only a board preset (not `sitl`), pass `--msg-dir build/<preset>/generated/schema/python` (and `--param-meta build/<preset>/generated/params/params.json` for `param` commands); inside an unpacked [Host Tools Bundle](docs/guide/companion-computer.md#the-host-tools-bundle), both are detected automatically.
+
 ## Documentation
 
-The [documentation index](docs/README.md) lists every guide, the board pages, the decision records, the milestone specs and the repository layout. [`GLOSSARY.md`](GLOSSARY.md) defines the vocabulary. To learn the hardware one component at a time, start with the [board examples](docs/guide/examples.md).
+Start with [Environment setup](docs/guide/setup.md) for role-based host, companion, and desktop setup (`dev`, `flash`, `companion`, `desktop`). The [documentation index](docs/README.md) lists every guide, the board pages, the decision records, the milestone specs and the repository layout. [`GLOSSARY.md`](GLOSSARY.md) defines the vocabulary. To learn the hardware one component at a time, start with the [board examples](docs/guide/examples.md).
 
 ## Contributing
 

@@ -4,33 +4,33 @@ Tests are split into six layers, L0 to L5 (ADR-0018). The directories under `tes
 
 ## Host tests and SITL tests
 
-Unit tests and SITL tests run through `ctest` in the development container ([Building](building.md#development-environment); with Docker, prefix each command with `vk`):
+Unit tests and SITL tests run through `ctest` in the development container ([Environment setup](setup.md), [Building](building.md#development-environment); omit `vk` inside VS Code Dev Containers):
 
 ```bash
-cmake --preset test
-cmake --build --preset test
-ctest --preset test
+vk cmake --preset test
+vk cmake --build --preset test
+vk ctest --preset test
 ```
 
 The SITL tests (`sitl_*`) start the SITL executable and check it from the development host with the scripts in `test/sitl/`; each guide names the tests that cover it ([SITL](sitl.md), [Link monitor](link-monitor.md), [Driving the wheels](driving.md), [Local display](local-display.md), [Logging](logging.md)). SITL tests run serially under `ctest -j`, since they judge timing on the shared host. CI builds every preset and runs the tests in the same image.
 
 CI gives a failed test a second attempt (`--repeat until-pass:2`), since a stall of the shared runner can fail a check that judges timing. A local run does not, so a failure there counts at once. A test that passed only on its second attempt leaves CI green, so an intermittent bug can pass too: its first attempt stays in the job's log as `***Failed`, followed by the same test's `Passed`. Search the log for `***Failed` when a test is suspect.
 
-The license check, `reuse_lint`, covers every file in the working tree that git does not ignore, untracked ones included. A stray file such as a log written to the repository root fails it with `The following files have no licensing information`: move it out of the tree, or under `build/`, which git ignores.
+The license check, `reuse_lint`, covers every file in the working tree that git does not ignore, untracked ones included. A stray file such as a log written to the repository root fails it with `The following files have no licensing information`: move it out of the tree, or under `build/` or `vendor/`, which git ignores.
 
-The Python lint, `python_lint`, runs ruff (rules `E`, `F`, `W` and `BLE`, line length 120, configured in [`pyproject.toml`](../../pyproject.toml)) over the repository's own Python. The bundled host tools in `tools/link/`, `tools/log/` and `tools/flash/` are checked against Python 3.10 (a `ruff.toml` in each), so syntax newer than 3.10 fails there and not in the generators ([ADR-0026](../adr/0026-host-tools-bundle.md)). Fix findings by hand or with `ruff check --fix`; a deliberate exception takes a `# noqa: <code>` comment. `ruff format` is not used.
+The Python lint, `python_lint`, runs ruff (rules `E`, `F`, `W` and `BLE`, line length 120, configured in [`pyproject.toml`](../../pyproject.toml)) over the repository's own Python. The bundled host tools in `tools/link/`, `tools/log/`, `tools/flash/`, and `tools/setup/` are checked against Python 3.10 (a `ruff.toml` in each), so syntax newer than 3.10 fails there and not in the generators ([ADR-0026](../adr/0026-host-tools-bundle.md), [ADR-0028](../adr/0028-host-environment-setup.md)). Fix findings by hand or with `ruff check --fix`; a deliberate exception takes a `# noqa: <code>` comment. `ruff format` is not used.
 
 ### Faster local runs
 
 A full run takes a few minutes, for two reasons. The `test` preset runs clang-tidy on every file, which takes about 95 % of the build time (66 s against 3 s on 24 cores). The SITL tests, about 6 minutes, always run one at a time: they judge timing, and running them together would make them fail. While iterating, turn clang-tidy off in the build tree and leave the SITL tests out:
 
 ```bash
-cmake --preset test -DVK_CLANG_TIDY=OFF
-cmake --build --preset test
-ctest --preset test -E '^sitl_' -j "$(nproc)"
+vk cmake --preset test -DVK_CLANG_TIDY=OFF
+vk cmake --build --preset test
+vk ctest --preset test -E '^sitl_' -j "$(nproc)"
 ```
 
-Run one SITL test by name with `ctest --preset test -R sitl_body_motion`. Before a pull request, turn clang-tidy back on (`cmake --preset test -DVK_CLANG_TIDY=ON`) and run the whole suite, as CI does.
+Run one SITL test by name with `vk ctest --preset test -R sitl_body_motion`. Before a pull request, turn clang-tidy back on (`vk cmake --preset test -DVK_CLANG_TIDY=ON`) and run the whole suite, as CI does.
 
 ## Estimator replay (L2)
 
@@ -53,19 +53,19 @@ The Link decodes bytes from any connected host, so its decoders are fuzzed with 
 
 The session target skips COBS and the CRC, which the frame reader target covers, so its inputs reach the frame bodies. Its input format is in `test/fuzz/session_input.hpp`.
 
-The build writes the seed corpus from the schema and the protocol, so it never falls out of step: a valid frame of each request the MCU answers, topic data for every schema topic, and a whole session. `ctest --preset fuzz` runs each target for 60 s, three at a time, and fails on any sanitizer report, failed check or input that runs over 10 s; CI runs it on every push:
+The build writes the seed corpus from the schema and the protocol, so it never falls out of step: a valid frame of each request the MCU answers, topic data for every schema topic, and a whole session. `vk ctest --preset fuzz` runs each target for 60 s, three at a time, and fails on any sanitizer report, failed check or input that runs over 10 s; CI runs it on every push:
 
 ```bash
-cmake --preset fuzz
-cmake --build --preset fuzz
-ctest --preset fuzz
+vk cmake --preset fuzz
+vk cmake --build --preset fuzz
+vk ctest --preset fuzz
 ```
 
-For a shorter or longer bounded run, set `VK_FUZZ_SECONDS` (`cmake --preset fuzz -DVK_FUZZ_SECONDS=600`). Longer runs are started by hand from the build directory; what the fuzzer finds accumulates in `corpus/` and carries over to the next run:
+For a shorter or longer bounded run, set `VK_FUZZ_SECONDS` (`vk cmake --preset fuzz -DVK_FUZZ_SECONDS=600`). Longer runs are started by hand inside the container from the build directory; what the fuzzer finds accumulates in `corpus/` and carries over to the next run:
 
 ```bash
 cd build/fuzz/test/fuzz
-./vk_fuzz_session -max_total_time=3600 -jobs=4 -max_len=4096 -artifact_prefix=artifacts/ corpus/session seeds/session
+vk ./vk_fuzz_session -max_total_time=3600 -jobs=4 -max_len=4096 -artifact_prefix=artifacts/ corpus/session seeds/session
 ```
 
 A finding leaves its input in `build/fuzz/test/fuzz/artifacts/`. Run the target on that file alone to reproduce it, fix the bug, and add the case as a unit test in `test/unit/link_test.cpp`, so the `test` preset keeps checking it. A memory safety bug in a Link decoder is a security issue (`SECURITY.md`): report it privately rather than in a public issue.
@@ -76,11 +76,11 @@ A finding leaves its input in `build/fuzz/test/fuzz/artifacts/`. Run the target 
 
 ## Bring-up image
 
-The bring-up test build (L4) runs the hardware bring-up cases at boot instead of the application: it reads the ICM20948's WHO_AM_I over software I2C and measures the IMU read rate. It never configures actuator outputs, so it is safe with motors connected. Build it in the development container, then run the bring-up runner on the host, which flashes it over SWD, reads the result block back and exits non-zero if a case fails or no results arrive:
+The bring-up test build (L4) runs the hardware bring-up cases at boot instead of the application: it reads the ICM20948's WHO_AM_I over software I2C and measures the IMU read rate. It never configures actuator outputs, so it is safe with motors connected. Build it in the development container, then run the bring-up runner on the **host** (requires `openocd` and ST-Link udev rules via `tools/setup/vk_setup.py --role flash`), which flashes it over SWD, reads the result block back and exits non-zero if a case fails or no results arrive:
 
 ```bash
-cmake --preset c50c-v1_1-bringup
-cmake --build --preset c50c-v1_1-bringup
+vk cmake --preset c50c-v1_1-bringup
+vk cmake --build --preset c50c-v1_1-bringup
 ```
 
 On the host:

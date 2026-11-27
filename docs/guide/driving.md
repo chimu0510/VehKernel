@@ -1,6 +1,6 @@
 # Driving the wheels
 
-Actuators move only while armed, in `TEST`, `MANUAL` or `COMPANION` (ADR-0005). In `TEST` the development host drives on one of two setpoint levels (ADR-0018): direct-actuator setpoints, one wheel speed in rad/s per motor output, or body velocity setpoints, the motion of the vehicle as a whole, which the control chain allocates to the wheels through the vehicle model (ADR-0013). In `MANUAL` a gamepad drives with body velocity setpoints ([Remote control](#remote-control)). The commands below use the [Link monitor](link-monitor.md) against SITL; on a board, use `--serial /dev/ttyACM0` instead of `--udp`, with the firmware build's `--msg-dir` and `--param-meta` ([Connecting](link-monitor.md#connecting)).
+Actuators move only while armed, in `TEST`, `MANUAL` or `COMPANION` (ADR-0005). In `TEST` the development host drives on one of two setpoint levels (ADR-0018): direct-actuator setpoints, one wheel speed in rad/s per motor output, or body velocity setpoints, the motion of the vehicle as a whole, which the control chain allocates to the wheels through the vehicle model (ADR-0013). In `MANUAL` a gamepad drives with body velocity setpoints ([Remote control](#remote-control)). The commands below run the [Link monitor](link-monitor.md) on the host (or with `vk`) against SITL built from the `sitl` preset (`vk build/sitl/app/vehkernel-sitl --duration 0`); on a board, run `link_monitor.py` on the host with `--serial /dev/ttyACM0` instead of `--udp` and pass the firmware build's `--msg-dir` and `--param-meta` ([Connecting](link-monitor.md#connecting)).
 
 ## Safety conditions
 
@@ -110,7 +110,7 @@ tools/link/link_monitor.py --udp 127.0.0.1:15600 sim-gamepad --left 0,0.54 --dur
 
 ## Fault stop check
 
-The hardware check of ADR-0005: a fault while driving turns every output off within one interrupt, and the board resets and reports why. Lift the wheels off the ground and limit the motor supply. Build the firmware with a fault test in the local debug overlay, `build/c50c-v1_1/debug.config` ([Building](building.md)), one of:
+The hardware check of ADR-0005: a fault while driving turns every output off within one interrupt, and the board resets and reports why. Lift the wheels off the ground and limit the motor supply. Build the firmware in the development container (`vk cmake --build --preset c50c-v1_1`) with a fault test in the local debug overlay, `build/c50c-v1_1/debug.config` ([Building](building.md)), one of:
 
 ```text
 CONFIG_FAULT_TEST_ASSERT=y

@@ -6,30 +6,45 @@ To monitor, configure, log, and flash the board from the companion computer, eac
 
 ## The host tools bundle
 
-The host tools (the Link monitor `tools/link/link_monitor.py`, log utilities in `tools/log/`, and the serial flasher `tools/flash/flash_serial.py`) are pure Python scripts requiring only the standard library and `pyserial`. However, to function they need build outputs:
+The host tools (the Link monitor `tools/link/link_monitor.py`, log utilities in `tools/log/`, the serial flasher `tools/flash/flash_serial.py`, and the setup utilities in `tools/setup/` including `vk_setup.py`, `ntp_offset.py`, udev rules, and user `systemd` templates) are pure Python scripts requiring only the standard library and `pyserial` ([ADR-0026](../adr/0026-host-tools-bundle.md), [ADR-0028](../adr/0028-host-environment-setup.md)). To function against a build they also need build outputs:
 - Generated Python message decoders (`generated/schema/python/vkmsg.py`).
 - Parameter metadata (`generated/params/params.json`), providing names, types, units, ranges, and enum values.
 - The board Flash layout (`generated/board/board.json`) and firmware images (`app/vehkernel.bin`, `vehkernel.apj`, `vehkernel.elf`, `vehkernel.hex`, and `vehkernel_with_bl.hex`).
 
 The host tools bundle gathers these files at their standard repository paths, alongside `manifest.json` recording the preset, board, git commit, protocol version, parameter set hash, and minimum Python version.
 
-### Python compatibility floor
+### Prerequisites and serial permissions
 
-Bundled tools support Python 3.10 or newer (the default on Ubuntu 22.04 LTS and JetPack 6). They do not use features newer than 3.10 (such as `tomllib`, `typing.Self`, or `ExceptionGroup`).
+Bundled tools support Python 3.10 or newer (the default on Ubuntu 22.04/24.04 LTS, Debian 12 / Raspberry Pi OS, and JetPack 6). They do not use features newer than 3.10 (such as `tomllib`, `typing.Self`, or `ExceptionGroup`).
 
-Install `pyserial` on the companion computer:
-
-```bash
-sudo apt install python3-serial
-```
-
-(Raspberry Pi OS and recent Ubuntu refuse a system-wide `pip install`; the distribution's package, or `pip install pyserial` in a virtual environment, does the same.)
-
-For flashing a new board over a download port through the STM32 system bootloader, install `stm32flash`:
+On Ubuntu 24.04 or Debian 12 / Raspberry Pi OS, install and verify the serial packages, `dialout` group membership, [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation directly from an unpacked Host Tools Bundle (no git checkout required; [Environment setup](setup.md)):
 
 ```bash
-sudo apt install stm32flash
+# Ubuntu 24.04 companion running the ROS2 Bridge:
+tools/setup/vk_setup.py --role companion --dry-run
+tools/setup/vk_setup.py --role companion
+tools/setup/vk_setup.py --role companion --check
+
+# Ubuntu 24.04 or Debian 12 / Raspberry Pi OS (host tools and flashing only):
+tools/setup/vk_setup.py --role flash --dry-run
+tools/setup/vk_setup.py --role flash
+tools/setup/vk_setup.py --role flash --check
 ```
+
+To configure manually instead:
+
+```bash
+sudo apt install python3-serial stm32flash
+sudo usermod -aG dialout "$USER"
+sudo cp tools/setup/udev/99-vehkernel.rules /etc/udev/rules.d/99-vehkernel.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo systemctl disable --now ModemManager.service
+sudo apt purge brltty
+```
+
+Log out and log back in after adding your user to `dialout`. Disabling `ModemManager` and removing `brltty` prevents them from probing the board's CH9102F USB serial adapters and toggling DTR/RTS on C50C V1.1 `SERIAL2` (which resets the board or enters the STM32 system bootloader). (Raspberry Pi OS and recent Ubuntu refuse a system-wide `pip install`; use `python3-serial` from apt, or `pip install pyserial` inside a virtual environment.)
+
+For one-command remote deployment from a development host with [`tools/flash/deploy.py`](../../tools/flash/deploy.py), ensure `openssh-server` is installed and running on the companion computer (`sudo apt install openssh-server`) and configure SSH key authentication (and any custom port/host alias in `~/.ssh/config` on the development host) so non-interactive SSH succeeds without password prompts.
 
 ## Getting a bundle
 
@@ -39,10 +54,10 @@ CI builds the bundle for every board preset on each push and keeps it as the `bu
 
 ### From a development build
 
-On a development host, building any board preset or `sitl` automatically creates the bundle directory and archive:
+On a development host, building any board preset or `sitl` in the development container (`vk`) automatically creates the bundle directory and archive:
 
 ```bash
-cmake --build --preset c50c-v1_1
+vk cmake --build --preset c50c-v1_1
 ```
 
 This writes:
@@ -55,7 +70,7 @@ Copy the archive to the companion computer:
 scp build/c50c-v1_1/vehkernel-c50c-v1_1-*.tar.gz pi@companion:/home/pi/
 ```
 
-To copy the bundle and flash the board wired to the companion computer in one step, run `tools/flash/deploy.py pi@companion` on the development host instead ([Flashing](flashing.md#from-the-development-host-in-one-command)).
+To copy the bundle and flash the board wired to the companion computer in one step, run `tools/flash/deploy.py pi@companion` on the development host instead ([Flashing](flashing.md#from-the-development-host-in-one-command)). If the companion computer runs the ROS2 Bridge via the optional [`vehkernel-bridge.service`](ros2-bridge.md#running-the-bridge-as-a-user-service) user unit, `deploy.py` automatically pauses the service before flashing and restarts it afterwards without requiring remote `sudo`.
 
 ## Unpacking and running
 
@@ -142,27 +157,10 @@ timedatectl
 
 ### Choosing a server
 
-Before configuring a server, check that it answers with the right time from this network. Save this standard-library script as `ntp_offset.py`; it prints the computer's offset from the server it is given:
-
-```python
-import socket, struct, sys, time
-server = sys.argv[1]
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.settimeout(2)
-t0 = time.time()
-s.sendto(b"\x1b" + 47 * b"\0", (server, 123))
-try:
-    reply = s.recv(48)
-except TimeoutError:
-    sys.exit(f"{server}: no answer within 2 s")
-t1 = time.time()
-seconds, fraction = struct.unpack("!II", reply[40:48])
-server_time = seconds - 2208988800 + fraction / 2**32
-print(f"{server}: this computer minus the server: {(t0 + t1) / 2 - server_time:+.3f} s")
-```
+Before configuring a server, check that it answers with the right time from this network using [`tools/setup/ntp_offset.py`](../../tools/setup/ntp_offset.py) (standard-library Python 3.10+, shipped in both the repository and every Host Tools Bundle, so you never need to create an untracked script in a git checkout):
 
 ```bash
-python3 ntp_offset.py pool.ntp.org
+tools/setup/ntp_offset.py pool.ntp.org
 ```
 
 A timeout means the network blocks NTP to that server; an offset of days or weeks on a computer whose clock is right means the server keeps the wrong time. Pick a server that answers with an offset of milliseconds on a synchronized computer: your country's national time service, or `pool.ntp.org`.
@@ -185,18 +183,18 @@ A computer that runs chrony instead of `systemd-timesyncd` names its servers in 
 
 ### Comparing the two clocks
 
-Run `ntp_offset.py` with the same server on the development host and, through ssh, on the companion computer, which reads the script from the development host:
+Run `tools/setup/ntp_offset.py` with the same server on the development host and, over ssh, on the companion computer (streaming the script over stdin so the companion computer does not even need a local copy):
 
 ```bash
-python3 ntp_offset.py pool.ntp.org
-ssh pi@companion python3 - pool.ntp.org < ntp_offset.py
+tools/setup/ntp_offset.py pool.ntp.org
+ssh pi@companion python3 - pool.ntp.org < tools/setup/ntp_offset.py
 ```
 
 The difference between the two offsets is the offset between the two computers. Each measurement is good to about half its network round trip, a few milliseconds over Wi-Fi, so two synchronized computers differ by a few milliseconds. Comparing `date` on both over ssh is not a measurement: the ssh round trip, often hundreds of milliseconds, and the remote command's start-up land in the result.
 
 ## ROS2
 
-The ROS2 Bridge connects the Link to ROS2 Jazzy on the companion computer: `/odom`, the TF, `/imu/data`, the vehicle status, `/cmd_vel` and services for arming, the mode and the emergency stop. It is built from the repository with colcon, not from a bundle, and needs ROS2 Jazzy from apt on Ubuntu 24.04; its guide covers installing, building, the serial device's permissions and running it against SITL and a board ([ROS2 Bridge](ros2-bridge.md)). Both the Bridge and the Link monitor open the board's serial device, so stop the Bridge before running `link_monitor.py` on it.
+The ROS2 Bridge connects the Link to ROS2 Jazzy on the companion computer: `/odom`, the TF, `/imu/data`, the vehicle status, `/cmd_vel` and services for arming, the mode and the emergency stop. It is built from the repository with colcon, not from a bundle, and needs ROS2 Jazzy from apt on Ubuntu 24.04; its guide covers installing, building, serial device permissions, the optional [`vehkernel-bridge.service`](ros2-bridge.md#running-the-bridge-as-a-user-service) user unit, and running it against SITL and a board ([ROS2 Bridge](ros2-bridge.md)). Both the Bridge and the Link monitor open the board's serial device: `tools/flash/deploy.py` automatically pauses and restarts `vehkernel-bridge.service` around flashing, while manual `link_monitor.py` sessions require stopping the Bridge first (`systemctl --user stop vehkernel-bridge.service`).
 
 ## Workaround before bundles
 

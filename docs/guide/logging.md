@@ -4,19 +4,28 @@ Vehkernel records telemetry and sensor data in the standard ULog format (`.ulg`)
 
 ## Recording over a Link
 
-The Link monitor's `record` command connects to SITL or a hardware board, performs the handshake, reads the vehicle's parameters, requests logging to start, and writes the stream to a `.ulg` file on the host. Run the commands in the development container ([Building](building.md#development-environment); with Docker, prefix each command with `vk`), SITL in one terminal and the recorder in another:
+The Link monitor's `record` command connects to SITL or a hardware board, performs the handshake, reads the vehicle's parameters, requests logging to start, and writes the stream to a `.ulg` file.
+
+> [!NOTE]
+> Do not save `.ulg` files in the repository root: `reuse_lint` fails on untracked files without license headers ([Testing](testing.md#host-tests-and-sitl-tests)). Save logs to `/tmp/` for host-only tools, or to the git-ignored `vendor/` directory (`mkdir -p vendor`) when you plan to inspect or replay them inside the development container (`vk` mounts `$PWD`, not host `/tmp/`).
+
+To record SITL, build the `sitl` preset first (`vk cmake --preset sitl && vk cmake --build --preset sitl`), start SITL in the development container in one terminal, and run the recorder in another (on the host or with `vk`):
 
 ```bash
-build/sitl/app/vehkernel-sitl --duration 0
-tools/link/link_monitor.py --udp 127.0.0.1:15600 record log.ulg --profile estimator_replay --duration 10
+vk build/sitl/app/vehkernel-sitl --duration 0
+mkdir -p vendor
+tools/link/link_monitor.py --udp 127.0.0.1:15600 record vendor/log.ulg --profile estimator_replay --duration 10
 ```
 
-On a serial connection to hardware (for example [C50C V1.1](../boards/c50c-v1_1.md)), run the recorder on the host, which has the board's USB devices ([Container or host](building.md#container-or-host)):
+On a serial connection to hardware (for example [C50C V1.1](../boards/c50c-v1_1.md)), run the recorder on the **host**, which has the board's USB devices (`python3-serial` and `dialout` via `tools/setup/vk_setup.py --role flash`; [Container or host](building.md#container-or-host)):
 
 ```bash
+mkdir -p vendor
 tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/generated/schema/python \
-    record log.ulg --profile estimator_replay --duration 60
+    record vendor/log.ulg --profile estimator_replay --duration 60
 ```
+
+Inside an unpacked [Host Tools Bundle](companion-computer.md#the-host-tools-bundle), `--msg-dir` is detected automatically.
 
 The recorder stops when `--duration` expires or on `Ctrl-C`, and fails with exit code 1 when the serial port goes away. The MCU stops logging when the recorder asks it to, and on its own when the host stays silent past the Link's peer timeout.
 
@@ -81,31 +90,31 @@ Both cases are recorded as ULog dropout (`O`) messages indicating the gap durati
 
 ### pyulog
 
-Standard `pyulog` tools inspect and extract data from recorded `.ulg` files.
+Standard `pyulog` tools (`ulog_info`, `ulog_params`, and `ulog2csv`) are installed inside the development container—run them with `vk` unless you have installed `pyulog` separately on the host. Keep the `.ulg` file under `vendor/` (or `build/`) so it is visible inside `vk` and ignored by `reuse_lint`.
 
 View metadata, info messages, message counts and dropouts:
 
 ```bash
-ulog_info log.ulg
+vk ulog_info vendor/log.ulg
 ```
 
 Print recorded parameters:
 
 ```bash
-ulog_params log.ulg
+vk ulog_params vendor/log.ulg
 ```
 
-Export topics to CSV files:
+Export topics to CSV files (write to `vendor/` rather than the repository root):
 
 ```bash
-ulog2csv log.ulg
+vk ulog2csv -o vendor vendor/log.ulg
 ```
 
 ### PlotJuggler
 
-[PlotJuggler](https://plotjuggler.io) loads Vehkernel ULog files natively through its ULog plugin.
+[PlotJuggler](https://plotjuggler.io) is a desktop GUI tool that runs on the **host** (it is not included in the development container) and loads Vehkernel ULog files natively through its ULog plugin. On Ubuntu 24.04 with the ROS2 Jazzy apt repository configured, install it via `sudo apt install ros-jazzy-plotjuggler-ros`, or download the upstream AppImage / `.deb` release from [plotjuggler.io](https://plotjuggler.io).
 
-1. Launch PlotJuggler:
+1. Launch PlotJuggler on the host:
    ```bash
    plotjuggler
    ```
@@ -114,10 +123,11 @@ ulog2csv log.ulg
 
 ### Magnetometer calibration
 
-A recorded turn-in-place log with the `estimator_replay` profile calibrates the vehicle's magnetometer hard-iron offsets and soft-iron scales (ADR-0014, spec 0012). `tools/log/mag_cal.py` reads `magnetometer_sample`, undoes the logged calibration, fits an axis-aligned ellipse to the horizontal field, and optionally applies the fitted `CAL_MAG_*` parameters over the Link:
+A recorded turn-in-place log with the `estimator_replay` profile calibrates the vehicle's magnetometer hard-iron offsets and soft-iron scales (ADR-0014, spec 0012). `tools/log/mag_cal.py` reads `magnetometer_sample`, undoes the logged calibration, fits an axis-aligned ellipse to the horizontal field, and optionally applies the fitted `CAL_MAG_*` parameters over the Link (run on the host for `--serial`, passing `--msg-dir` from a git checkout; automatic inside an unpacked Host Tools Bundle):
 
 ```bash
-tools/log/mag_cal.py log.ulg --apply --serial /dev/ttyACM0
+tools/log/mag_cal.py vendor/log.ulg --apply --serial /dev/ttyACM0 \
+    --msg-dir build/c50c-v1_1/generated/schema/python
 ```
 
 See [Magnetometer calibration](estimation.md#magnetometer-calibration) in the Estimation guide for the complete procedure and 3D ellipsoid options.
@@ -129,6 +139,13 @@ The replay toolchain (spec 0011, spec 0012, ADR-0018 L2) executes the firmware's
 - `tools/log/replay.py` feeds initial parameters and logged sensor inputs (`magnetometer_sample`, `imu_sample`, `body_velocity_measurement`, `parameter_update`, `estimator_restart`) from a recorded log into the replay binary in `wq:ctrl` order and writes its outputs (`vehicle_attitude`, `estimator_attitude`, `vehicle_local_odometry`) to a new `.ulg` file.
 - `tools/log/compare.py` compares the recorded and replayed files.
 
+Run `replay.py`, `compare.py`, and `cut.py` inside the **development container** (`vk`), and build the `test` preset first so `build/test/test/vehkernel-replay` exists:
+
+```bash
+vk cmake --preset test
+vk cmake --build --preset test
+```
+
 ### Picking the primary estimator
 
 The replay binary constructs the attitude estimators after applying the initial timestamp-0 parameters (`P` records) from the log. Each estimator checks `EST_PRIMARY` (defaulting to EKF if built, or Mahony as fallback); the selected estimator publishes `vehicle_attitude`, while the secondary publishes `estimator_attitude` (instance 0 for Mahony, instance 1 for EKF).
@@ -138,21 +155,21 @@ The replay binary constructs the attitude estimators after applying the initial 
 For logs recorded before a parameter existed (for example, the spec 0011 board log recorded before `EST_PRIMARY` was introduced), or to test an alternative estimator configuration without changing the log file, `replay.py` accepts `--param NAME=VALUE` overrides (or `params={"NAME": value}` in Python). Overrides are applied as timestamp-0 parameters after the log's own:
 
 ```bash
-tools/log/replay.py log.ulg replayed.ulg --param EST_PRIMARY=1
+vk tools/log/replay.py vendor/log.ulg vendor/replayed.ulg --param EST_PRIMARY=1
 ```
 
 ### Running replay
 
-Replay a recorded log to an output log:
+Replay a recorded log to an output log (inside the container, with `test` built):
 
 ```bash
-tools/log/replay.py log.ulg replayed.ulg
+vk tools/log/replay.py vendor/log.ulg vendor/replayed.ulg
 ```
 
 Compare the replayed log against the recorded log:
 
 ```bash
-tools/log/compare.py log.ulg replayed.ulg
+vk tools/log/compare.py vendor/log.ulg vendor/replayed.ulg
 ```
 
 ### Cutting a log
@@ -160,7 +177,7 @@ tools/log/compare.py log.ulg replayed.ulg
 `tools/log/cut.py` keeps the part of a log from its first `estimator_restart` for a number of seconds, with the topics the replay reads and the estimates it is compared with (`imu_sample`, `body_velocity_measurement`, `estimator_restart`, `vehicle_attitude`, `vehicle_local_odometry`) and the log's formats, information and parameters:
 
 ```bash
-tools/log/cut.py log.ulg cut.ulg --duration 30
+vk tools/log/cut.py vendor/log.ulg vendor/cut.ulg --duration 30
 ```
 
 The log of the `replay_board_log` test was cut so, from a drive recorded on the C50C V1.1.

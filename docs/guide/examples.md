@@ -16,11 +16,11 @@ The examples are numbered in hardware and layering dependency order: earlier exa
 
 ## Building the examples
 
-Board examples are built with the `<board>-examples` preset, such as `c50c-v1_1-examples`. Run `cmake` and `cmake --build` inside the development container ([Building](building.md)):
+Board examples are built with the `<board>-examples` preset, such as `c50c-v1_1-examples`. Run `cmake` and `cmake --build` inside the development container ([Environment setup](setup.md), [Building](building.md); omit `vk` inside VS Code Dev Containers):
 
 ```bash
-cmake --preset c50c-v1_1-examples
-cmake --build --preset c50c-v1_1-examples
+vk cmake --preset c50c-v1_1-examples
+vk cmake --build --preset c50c-v1_1-examples
 ```
 
 The build produces one finalized executable per example under `build/<board>-examples/app/examples/`:
@@ -33,7 +33,7 @@ Every example links against the board's `FIRMWARE` Flash region and includes Ard
 
 ## Flashing an example
 
-Examples are flashed over the bootloader using the serial flasher tool ([Flashing](flashing.md)). Connect the host to the board's one-key download port (SERIAL2):
+Examples are flashed from the **host** over the bootloader using the serial flasher tool (`tools/setup/vk_setup.py --role flash`; [Flashing](flashing.md)). Connect the host to the board's one-key download port (SERIAL2):
 
 ```bash
 tools/flash/flash_serial.py --port /dev/ttyACM0 --build build/c50c-v1_1-examples update --image build/c50c-v1_1-examples/app/examples/example-01-led.apj
@@ -45,33 +45,33 @@ Because examples share the board's Flash layout and Kconfig parameters, flashing
 
 ## Running in SITL
 
-Examples that declare `sitl = true` in `examples.toml` build for the development host with the `sitl-examples` preset:
+Examples that declare `sitl = true` in `examples.toml` build for the development host in the container with the `sitl-examples` preset:
 
 ```bash
-cmake --preset sitl-examples
-cmake --build --preset sitl-examples
+vk cmake --preset sitl-examples
+vk cmake --build --preset sitl-examples
 ```
 
-The build compiles the SITL examples with clang-tidy into host executables under `build/sitl-examples/app/examples/`. Run an example directly, with options to specify duration and capture the display:
+The build compiles the SITL examples with clang-tidy into host executables under `build/sitl-examples/app/examples/`. Run an example inside the container, writing any display capture under `build/` (so a host image viewer can read it and `reuse_lint` ignores it):
 
 ```bash
-build/sitl-examples/app/examples/example-03-oled --duration 3 --display /tmp/display.pbm
+vk build/sitl-examples/app/examples/example-03-oled --duration 3 --display build/display.pbm
 ```
 
 To run the automated L3 scenario checks for every SITL example, or for one with `-R`:
 
 ```bash
-ctest --preset sitl-examples
-ctest --preset sitl-examples -R example_07_serial_link
+vk ctest --preset sitl-examples
+vk ctest --preset sitl-examples -R example_07_serial_link
 ```
 
 ## Returning to the firmware
 
-To return the board to normal vehicle firmware, rebuild the firmware preset and flash with the default build:
+To return the board to normal vehicle firmware, rebuild the firmware preset in the container and flash from the host with the default build:
 
 ```bash
-cmake --preset c50c-v1_1
-cmake --build --preset c50c-v1_1
+vk cmake --preset c50c-v1_1
+vk cmake --build --preset c50c-v1_1
 tools/flash/flash_serial.py --port /dev/ttyACM0 update
 ```
 

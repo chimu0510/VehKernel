@@ -125,13 +125,13 @@ A display that is missing or does not answer affects nothing else: it is not par
 
 ## In SITL
 
-SITL simulates an SSD1306; `--display <path>` writes what it shows to a PBM image after every change (black while the display is off), which any image viewer opens, and the contrast to `<path>.contrast`:
+Build the `sitl` preset first (`vk cmake --preset sitl && vk cmake --build --preset sitl`). SITL simulates an SSD1306 inside the development container; `--display <path>` writes what it shows to a PBM image after every change (black while the display is off), which any image viewer opens, and the contrast to `<path>.contrast`. Write the file under `build/` (or `vendor/`) when running through `vk` so an image viewer on the host can open it and `reuse_lint` ignores it:
 
 ```bash
-build/sitl/app/vehkernel-sitl --duration 0 --display /tmp/vk-display.pbm
+vk build/sitl/app/vehkernel-sitl --duration 0 --display build/vk-display.pbm
 ```
 
-The [Link monitor](link-monitor.md) presses the simulated user key, then prints the menu's state, which the live view also shows:
+The [Link monitor](link-monitor.md) (on the host or with `vk`) presses the simulated user key, then prints the menu's state, which the live view also shows:
 
 ```bash
 tools/link/link_monitor.py --udp 127.0.0.1:15600 key click

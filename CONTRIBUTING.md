@@ -10,13 +10,16 @@ Thank you for helping. This page covers how work is proposed, how it is built an
 
 ## Development environment
 
-Everything that affects build output is pinned in the development container's image, and `cmake` and `ctest` run inside it, never on the host ([ADR-0016](docs/adr/0016-dependency-policy.md)). Clone with submodules, then open the repository in VS Code Dev Containers or run each command through Docker, as [Building](docs/guide/building.md#development-environment) shows:
+Everything that affects build output is pinned in the development container's image (`ghcr.io/chimu0510/vehkernel-dev:latest`, built from `.devcontainer/Dockerfile`), and `cmake` and `ctest` run inside it, never on the host ([ADR-0016](docs/adr/0016-dependency-policy.md)). Clone with submodules, then run `vk_setup.py --role dev` to pull the pre-built image and install the worktree-safe `vk` wrapper (`tools/setup/vk` to `~/.local/bin/vk`), or open the repository in VS Code Dev Containers ([Environment setup](docs/guide/setup.md), [Building](docs/guide/building.md#development-environment)):
 
 ```bash
 git clone --recurse-submodules https://github.com/chimu0510/VehKernel.git
+cd VehKernel
+tools/setup/vk_setup.py --role dev
+tools/setup/vk_setup.py --role dev --check
 ```
 
-[Building](docs/guide/building.md) lists the presets and the host tools needed for flashing. You do not need hardware to contribute: SITL runs the complete firmware on the development host ([SITL](docs/guide/sitl.md)).
+Pass `--build-local` if you edited `.devcontainer/Dockerfile` or cannot pull from GHCR, and add `--role flash` on a development host that flashes hardware. [Building](docs/guide/building.md) lists the presets and host tools. You do not need hardware to contribute: SITL runs the complete firmware on the development host ([SITL](docs/guide/sitl.md)).
 
 ## Checking your change
 
@@ -28,7 +31,7 @@ cmake --build --preset test
 ctest --preset test
 ```
 
-`ctest` includes the license check (`reuse_lint`) and the Python lint (`python_lint`, ruff, [configured](pyproject.toml) for line length 120 and Python 3.10 in the bundled tools); `ruff check --fix` repairs most findings. Then build every firmware preset you touched, for example `c50c-v1_1`. A change to the Link's decoders also runs the fuzz targets (`cmake --preset fuzz`, `cmake --build --preset fuzz`, `ctest --preset fuzz`). The `sitl`, `test` and `fuzz` presets run clang-tidy with every warning as an error. [Testing](docs/guide/testing.md) describes the six test layers; add tests at the lowest layer that can catch the bug. Changes that move actuators also need the hardware check described there, done with the wheels off the ground and output power limited.
+`ctest` includes the license check (`reuse_lint`) and the Python lint (`python_lint`, ruff, [configured](pyproject.toml) for line length 120 and Python 3.10 in the bundled tools under `tools/link/`, `tools/log/`, `tools/flash/`, and `tools/setup/`); `ruff check --fix` repairs most findings. Then build every firmware preset you touched, for example `c50c-v1_1`. A change to the Link's decoders also runs the fuzz targets (`cmake --preset fuzz`, `cmake --build --preset fuzz`, `ctest --preset fuzz`). The `sitl`, `test` and `fuzz` presets run clang-tidy with every warning as an error. [Testing](docs/guide/testing.md) describes the six test layers; add tests at the lowest layer that can catch the bug. Changes that move actuators also need the hardware check described there, done with the wheels off the ground and output power limited.
 
 ## Coding rules
 

@@ -1,11 +1,11 @@
 # SITL
 
-SITL runs the firmware on the FreeRTOS POSIX port on the development host (ADR-0018), with the real drivers reading simulated devices: the ICM20948 driver reads a simulated ICM20948 on a simulated I2C bus. Build and run it in the development container ([Building](building.md#development-environment); with Docker, prefix each command with `vk`):
+SITL runs the firmware on the FreeRTOS POSIX port on the development host (ADR-0018), with the real drivers reading simulated devices: the ICM20948 driver reads a simulated ICM20948 on a simulated I2C bus. Build and run it in the development container ([Environment setup](setup.md), [Building](building.md#development-environment); omit `vk` inside VS Code Dev Containers):
 
 ```bash
-cmake --preset sitl
-cmake --build --preset sitl
-build/sitl/app/vehkernel-sitl --duration 5
+vk cmake --preset sitl
+vk cmake --build --preset sitl
+vk build/sitl/app/vehkernel-sitl --duration 5
 ```
 
 ## Options
@@ -123,16 +123,16 @@ With `--motion` and a profile, SITL's simulated IMU follows a scripted motion in
 | `shake` | Level, with 0.5 s bursts of 6 m/s² forward acceleration every 1.5 s |
 
 ```bash
-build/sitl/app/vehkernel-sitl --duration 0 --motion rotate
+vk build/sitl/app/vehkernel-sitl --duration 0 --motion rotate
 ```
 
 CI checks the estimate against the truth with `test/sitl/check_attitude.py` (the `sitl_attitude_tilt`, `sitl_attitude_rotate` and `sitl_attitude_shake` tests): the tilt error (roll and pitch) must stay within 2° and the whole attitude error, which bounds yaw, within 5°.
 
 ## Transports
 
-UDP is SITL's default Link transport (ADR-0002): on `127.0.0.1:15600` by default, or the address given with `--udp`; SITL prints a `link` line with the port it bound.
+UDP is SITL's default Link transport (ADR-0002): on `127.0.0.1:15600` by default, or the address given with `--udp`; SITL prints a `link` line with the port it bound. Because `vk` uses `--network host`, a Link monitor on the host reaches SITL's UDP port directly.
 
-To test a tool against a real serial API (termios, baud rate, framing) without hardware, start SITL with `--link pty` instead: it creates a pseudo-terminal, prints its path in the `link` line (`link transport=pty path=/dev/pts/3`), and the pty disappears when SITL exits. The monitor opens it like a board's serial port:
+To test a tool against a real serial API (termios, baud rate, framing) without hardware, start SITL with `--link pty` instead: it creates a pseudo-terminal, prints its path in the `link` line (`link transport=pty path=/dev/pts/3`), and the pty disappears when SITL exits. Because `/dev/pts/3` lives inside the container's namespace, run both SITL and the monitor inside the same container session (for example two terminals in VS Code Dev Containers, or `vk bash` with a backgrounded SITL):
 
 ```bash
 build/sitl/app/vehkernel-sitl --duration 0 --link pty

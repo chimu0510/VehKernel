@@ -13,6 +13,7 @@
 
 | Guide | Contents |
 |---|---|
+| [Environment setup](guide/setup.md) | Role-based host, companion and desktop setup (`vk_setup.py`), `vk` wrapper, udev rules, `vehkernel-bridge.service` |
 | [Building](guide/building.md) | Devcontainer, host tools, presets, Kconfig |
 | [Flashing](guide/flashing.md) | SWD, the serial flasher, rebooting into the bootloader |
 | [SITL](guide/sitl.md) | Options, report, motion profiles, transports |
@@ -55,7 +56,8 @@
 | `sim/` | SITL's simulated devices and the ground vehicle they move |
 | `soc/` | One directory per SoC, grouped by vendor and family |
 | `test/` | Tests, by layer ([Testing](guide/testing.md)) |
-| `tools/` | Host tools, one directory per purpose |
+| `tools/` | Host tools, one directory per purpose (`bringup/`, `bundle/`, `flash/`, `generators/`, `link/`, `log/`, `setup/`) |
+| `tools/setup/` | Role-based setup CLI (`vk_setup.py`), worktree-safe `vk` wrapper, `ntp_offset.py`, udev rules, and user `systemd` templates ([ADR-0028](adr/0028-host-environment-setup.md)) |
 | `.devcontainer/` | The pinned development image used locally and by CI |
 | `.github/` | CI workflow, issue forms and the pull request template |
 

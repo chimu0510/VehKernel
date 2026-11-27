@@ -4,15 +4,22 @@ The Bridge is a ROS2 node on the companion computer that connects one Link to RO
 
 ## Installing ROS2
 
-Install ROS2 Jazzy from its apt repository, following [Installing ROS 2 Jazzy](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html) up to and including the package `ros-jazzy-ros-base` (the desktop packages are not needed), then the build tools:
+On a fresh Ubuntu 24.04 companion computer (`amd64` or `arm64`, including Raspberry Pi 5), the automated path configures the ROS2 Jazzy apt repository, installs `build-essential`, ROS2 Jazzy, `colcon`, `rosdep`, serial permissions, and builds the Bridge in one command ([Environment setup](setup.md)):
 
 ```bash
-sudo apt install ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep git
+tools/setup/vk_setup.py --role companion --yes --workspace ~/vk_ws --build-bridge
+tools/setup/vk_setup.py --role companion --workspace ~/vk_ws --build-bridge --check
+```
+
+To install manually instead, configure the ROS2 Jazzy apt repository following [Installing ROS 2 Jazzy](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html) up to and including `ros-jazzy-ros-base` (the desktop packages are not needed), then install the C++ toolchain and build tools:
+
+```bash
+sudo apt install build-essential ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep git
 sudo rosdep init
 rosdep update
 ```
 
-`rosdep init` fails with a message that the file exists when the machine has run it before; that is fine.
+`build-essential` provides `g++` and `make`, which are absent from a fresh Ubuntu 24.04 Server or Raspberry Pi image and required by `colcon build`. `rosdep init` fails with a message that the file exists when the machine has run it before; that is fine. If you plan to build the Bridge with clang-tidy enabled (`--cmake-args -DVK_CLANG_TIDY=ON`), also install `clang-tidy` (`sudo apt install clang-tidy`).
 
 ## Building the Bridge
 
@@ -29,16 +36,16 @@ colcon build --base-paths src/VehKernel/bridge --packages-up-to vehkernel_bridge
 source install/setup.bash
 ```
 
-The build runs `tools/generators/generate_schema.py` with the system's Python, so the firmware, the host tools and the Bridge always use the same message definitions. Source `install/setup.bash` in every new terminal before the commands below. The Bridge's tests run with `colcon test --base-paths src/VehKernel/bridge --packages-select vehkernel_bridge`; the L5 test needs a SITL build ([Testing](#testing)).
+The build runs `tools/generators/generate_schema.py` with the system's Python, so the firmware, the host tools and the Bridge always use the same message definitions. To run clang-tidy on the Bridge's C++ sources (requires `sudo apt install clang-tidy`), pass `--cmake-args -DVK_CLANG_TIDY=ON` to `colcon build`. Source `install/setup.bash` in every new terminal before the commands below. The Bridge's tests run with `colcon test --base-paths src/VehKernel/bridge --packages-select vehkernel_bridge`; the L5 test needs a SITL build ([Testing](#testing)).
 
 ## Running against SITL
 
-Start SITL in the development container ([SITL](sitl.md)), where its UDP Link is on `127.0.0.1:15600`:
+Start SITL in the development container ([SITL](sitl.md); prefix with `vk` when using Docker), where its UDP Link is on `127.0.0.1:15600`:
 
 ```bash
-cmake --preset sitl
-cmake --build --preset sitl
-build/sitl/app/vehkernel-sitl --duration 0
+vk cmake --preset sitl
+vk cmake --build --preset sitl
+vk build/sitl/app/vehkernel-sitl --duration 0
 ```
 
 Run the Bridge on the same host, or in a ROS2 container started with `--network host`, since SITL's Link answers on the loopback address. The Bridge's default transport is UDP on `127.0.0.1:15600`:
@@ -63,11 +70,20 @@ ros2 topic echo --once /vehkernel/vehicle_status
 
 ## Running against a board
 
-Connect the board's USB port to the companion computer. It appears as a serial device, usually `/dev/ttyACM0`; `/dev/serial/by-id/` names it by its USB identity, which stays the same when other devices are plugged in before it. A user must be in the `dialout` group to open it; log out and in again afterwards:
+Connect the board's USB port to the companion computer. Ensure your user is in the `dialout` group (log out and back in afterwards), install [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and keep `ModemManager` disabled and `brltty` removed so neither probes the board's USB serial adapters or toggles DTR/RTS on a download port (`tools/setup/vk_setup.py --role companion` configures and checks all of these):
 
 ```bash
-sudo usermod -aG dialout $USER
-ls -l /dev/serial/by-id/
+sudo usermod -aG dialout "$USER"
+sudo cp tools/setup/udev/99-vehkernel.rules /etc/udev/rules.d/99-vehkernel.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo systemctl disable --now ModemManager.service
+sudo apt purge brltty
+```
+
+Each serial adapter appears as `/dev/ttyACM0`, `/dev/ttyACM1`, etc. in plug-in order. On the C50C V1.1, both CH9102F adapters (`SERIAL1` and `SERIAL2`) share the same `/dev/serial/by-id/` entry (`usb-WCH.CN_USB_Single_Serial_0002-if00`), so `/dev/serial/by-id/` cannot distinguish them ([C50C V1.1 serial ports](../boards/c50c-v1_1.md#serial-ports)). For a stable device path across reboots and replugs, use `/dev/serial/by-path/` or pin `/dev/vehkernel-link` by physical USB port using the commented `ENV{ID_PATH}` or `KERNELS` template in [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules):
+
+```bash
+ls -l /dev/serial/by-path/
 ```
 
 Run the Bridge on the serial Link, at the Link's default 921600 baud:
@@ -78,16 +94,56 @@ ros2 run vehkernel_bridge bridge --ros-args -p transport:=serial -p serial_devic
 
 The Bridge reconnects on its own, with a growing wait between attempts, when the board reboots or the cable is replugged; the log says why the Link went down.
 
+## Running the Bridge as a user service
+
+To start the Bridge automatically at boot and manage it without `sudo`, install the optional user `systemd` unit [`tools/setup/systemd/vehkernel-bridge.service`](../../tools/setup/systemd/vehkernel-bridge.service) ([ADR-0027](../adr/0027-ros2-bridge.md), [ADR-0028](../adr/0028-host-environment-setup.md)):
+
+```bash
+tools/setup/vk_setup.py --role companion --install-bridge-service \
+    --workspace ~/vk_ws --device /dev/vehkernel-link --baud 921600 --ros-domain-id 0
+```
+
+This installs `~/.config/systemd/user/vehkernel-bridge.service`, creates `~/.config/vehkernel/bridge.env` if absent (preserving existing edits; see [`tools/setup/systemd/bridge.env.example`](../../tools/setup/systemd/bridge.env.example)), runs `systemctl --user enable vehkernel-bridge.service`, and enables lingering (`sudo loginctl enable-linger "$USER"`) so the user service starts at boot without an interactive login. Edit `~/.config/vehkernel/bridge.env` to change `VK_BRIDGE_WORKSPACE` (must be an absolute path; `systemd` `EnvironmentFile` does not expand `~`), `VK_BRIDGE_DEVICE`, `VK_BRIDGE_BAUD`, or `ROS_DOMAIN_ID`.
+
+Start, inspect, restart, and view logs for the service:
+
+```bash
+systemctl --user start vehkernel-bridge.service
+systemctl --user status vehkernel-bridge.service
+systemctl --user restart vehkernel-bridge.service
+journalctl --user -u vehkernel-bridge.service -f
+```
+
+Because `vehkernel-bridge.service` is a user unit, [`tools/flash/deploy.py`](../../tools/flash/deploy.py) automatically detects an active service over non-interactive SSH, stops it before serial flashing, and restarts it afterwards (even if flashing fails) without requiring `sudo` ([Flashing](flashing.md#from-the-development-host-in-one-command)).
+
 ## Viewing in RViz
 
-RViz runs on a desktop machine on the same network, such as the development host, rather than on the companion computer; install it there with `sudo apt install ros-jazzy-rviz2`, unless ROS2's desktop packages are already installed. The two computers see each other's topics only with the same ROS domain: `ROS_DOMAIN_ID` unset or equal on both. A shell startup file can set it, such as `~/.bashrc` on the companion computer, which a Bridge started from an interactive terminal reads and one started over a non-interactive ssh does not. On the desktop machine, check that the Bridge's topics arrive:
+RViz runs on an Ubuntu 24.04 desktop machine on the same network, such as the development host, rather than on the companion computer. Install RViz2, the IMU display plugin, and `teleop_twist_keyboard` with `vk_setup.py --role desktop` (which also checks `ROS_DOMAIN_ID`, `ufw`, and NTP synchronization; [Environment setup](setup.md)):
+
+```bash
+tools/setup/vk_setup.py --role desktop --yes
+tools/setup/vk_setup.py --role desktop --check
+```
+
+Or install the packages manually after configuring the ROS2 Jazzy apt repository:
+
+```bash
+sudo apt install ros-jazzy-rviz2 ros-jazzy-rviz-imu-plugin ros-jazzy-teleop-twist-keyboard
+```
+
+Check that the Bridge's topics arrive on the desktop machine:
 
 ```bash
 echo ${ROS_DOMAIN_ID:-0}
 ros2 topic list
 ```
 
-The topics should include `/odom`, `/imu/data` and `/vehkernel/vehicle_status`. Synchronize the two computers' clocks first ([Clock synchronization](companion-computer.md#clock-synchronization)): RViz drops TF and messages stamped too far from its own clock.
+The topics should include `/odom`, `/imu/data` and `/vehkernel/vehicle_status`. If topics do not appear or RViz drops TF/messages, check:
+
+- **`ROS_DOMAIN_ID`**: must match on both machines (unset defaults to `0`). A shell startup file such as `~/.bashrc` applies to interactive shells, whereas `vehkernel-bridge.service` reads `ROS_DOMAIN_ID` from `~/.config/vehkernel/bridge.env` and a Bridge launched over non-interactive SSH does not source `~/.bashrc`.
+- **Firewall (`ufw`)**: if `sudo ufw status` is active on either machine, allow ROS2 DDS UDP traffic (`sudo ufw allow 7400:7500/udp`).
+- **Multicast and network**: both computers must be on the same subnet with UDP multicast allowed (check that Wi-Fi AP/client isolation is disabled).
+- **Clock synchronization**: synchronize both clocks first ([Clock synchronization](companion-computer.md#clock-synchronization)); verify with `tools/setup/ntp_offset.py pool.ntp.org`. RViz drops TF and messages stamped too far from its own clock.
 
 The package installs an RViz config, which shows the TF with `base_link`'s axes, `/odom` as a trail of axes, and a grid, with the view following `base_link`:
 
@@ -97,14 +153,14 @@ rviz2 -d $(ros2 pkg prefix vehkernel_bridge)/share/vehkernel_bridge/rviz/bridge.
 
 On a desktop machine where the Bridge is not built, open the same file from a checkout: `rviz2 -d bridge/vehkernel_bridge/rviz/bridge.rviz`. Scrolling zooms and dragging orbits around `base_link`. A config of your own needs RViz's default tools (`Interact` and `MoveCamera`) for the mouse to move the view, and a view whose target frame is `base_link` to keep the vehicle in sight: wheel odometry counts wheels turned while lifted as travel, so after a test on the bench the vehicle starts far from `odom`'s origin.
 
-In the config, turning the board turns `base_link`'s axes: red is forward, green left and blue up. Yaw left is positive about up, nose up is negative pitch about left, and left side up is positive roll about forward. RViz on Jazzy has no display for `sensor_msgs/Imu` of its own. To see `/imu/data` itself, install the plugin with `sudo apt install ros-jazzy-rviz-imu-plugin`, add its `Imu` display, and set the topic's reliability to best effort. Its orientation is the one `/odom` carries.
+In the config, turning the board turns `base_link`'s axes: red is forward, green left and blue up. Yaw left is positive about up, nose up is negative pitch about left, and left side up is positive roll about forward. RViz on Jazzy has no display for `sensor_msgs/Imu` of its own. To see `/imu/data` itself, install `ros-jazzy-rviz-imu-plugin` (included in `--role desktop`), add its `Imu` display, and set the topic's reliability to best effort. Its orientation is the one `/odom` carries.
 
 ## Launch file
 
 `launch/bridge.launch.py` starts the Bridge with its Link given as launch arguments:
 
 ```bash
-ros2 launch vehkernel_bridge bridge.launch.py transport:=serial serial_device:=/dev/serial/by-id/<the board's name>
+ros2 launch vehkernel_bridge bridge.launch.py transport:=serial serial_device:=/dev/vehkernel-link
 ros2 launch vehkernel_bridge bridge.launch.py transport:=udp udp_port:=15600
 ```
 
@@ -133,7 +189,13 @@ ros2 service call /vehkernel/arm std_srvs/srv/SetBool "{data: true}"
 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/TwistStamped "{twist: {linear: {x: 0.2}}}"
 ```
 
-The wheels turn at the 0.2 m/s the message says, within the output cap `MOT_OUT_MAX` (30 % duty by default). `ros2 topic echo /odom` shows the vehicle moving forward. Each service answers with the MCU's reason when it refuses, for example that the emergency stop is engaged, or with a timeout when the board does not answer. `teleop_twist_keyboard` publishes `Twist`; run the Bridge with `cmd_vel_stamped:=false` for it. Nav2 on Jazzy publishes `TwistStamped`, the default.
+The wheels turn at the 0.2 m/s the message says, within the output cap `MOT_OUT_MAX` (30 % duty by default). `ros2 topic echo /odom` shows the vehicle moving forward. Each service answers with the MCU's reason when it refuses, for example that the emergency stop is engaged, or with a timeout when the board does not answer.
+
+To drive with a keyboard from a desktop machine, install `ros-jazzy-teleop-twist-keyboard` (`sudo apt install ros-jazzy-teleop-twist-keyboard`, also installed by `vk_setup.py --role desktop`) and start the Bridge with `cmd_vel_stamped:=false` (`teleop_twist_keyboard` publishes `Twist`, whereas Nav2 on Jazzy publishes `TwistStamped`, the default):
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
 
 Disarm with `{data: false}` on `/vehkernel/arm`. The remote control takes over from the Bridge at any time ([Remote control](driving.md#remote-control)).
 

@@ -2,6 +2,19 @@
 
 Every board is flashed through its bootloader (ADR-0023). A board without an ArduPilot or PX4 bootloader of its own, such as the C50C, gets the Vehkernel bootloader once, through the STM32 system bootloader or a debug probe, and every later update goes through it with ArduPilot's `uploader.py`. The board's connectors and ports are on its board page, for example [C50C V1.1](../boards/c50c-v1_1.md).
 
+## Prerequisites
+
+All flashing tools (`flash_serial.py`, `deploy.py`, `stm32flash`, `uploader.py`, and `openocd`) run on the **host**, outside the development container, because they access USB devices or SSH directly ([Container or host](building.md#container-or-host)).
+
+On Ubuntu 24.04 or Debian 12 / Raspberry Pi OS, install and verify the flashing prerequisites (`python3-serial`, `stm32flash`, `openocd`, `dialout`/`plugdev` groups, ST-Link and CH9102F udev rules from [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation; [Environment setup](setup.md)):
+
+```bash
+tools/setup/vk_setup.py --role flash
+tools/setup/vk_setup.py --role flash --check
+```
+
+Log out and log back in if you were just added to `dialout` or `plugdev`.
+
 ## The Vehkernel bootloader
 
 The Vehkernel bootloader sits in the BOOT region, S0 on the C50C, and speaks the bootloader protocol of ArduPilot and PX4 at revision 5 on the ports the board definition lists: SERIAL2 and SERIAL1 on the C50C, both at 115200 8N1, polled. After the first good command it answers on that port only.
@@ -20,10 +33,10 @@ CI runs the bootloader's SITL build on a pty against the pinned `uploader.py` (`
 
 On a board with a download circuit, such as the C50C's one-key download port, the adapter's RTS drives BOOT0 and its DTR, with RTS, drives NRST, so the STM32 system bootloader is entered and left without touching the board; the board definition declares this circuit on the port (`download = "DTR_RTS"`). `tools/flash/flash_serial.py` runs `stm32flash` on the host with that sequence and takes the Flash layout from the build's board definition. It reads `build/c50c-v1_1` and `/dev/ttyACM0` unless given `--build` and `--port`, which go before the command, as in `flash_serial.py --port /dev/ttyACM1 reset`. Device numbers follow the order the cables were plugged in; the board page says how to tell the ports apart.
 
-A new board, or one still running its vendor firmware, is flashed once with `new-board`. The command backs up the whole chip into `<board>_flash_<time>.bin` in the current directory, or the file given with `--backup`. It then erases the whole chip and writes `vehkernel_with_bl.hex`: the Vehkernel bootloader in S0 and the firmware from S4. Nothing of the vendor firmware, its settings or old parameters is left. The command takes about 2 minutes at 115200 baud. Nothing is erased if the backup fails or comes back short, and an existing backup file is never overwritten; `--no-backup` erases without one. Keep each board's backup outside the repository: vendor firmware differs from board to board.
+A new board, or one still running its vendor firmware, is flashed once with `new-board`. The command backs up the whole chip into `<board>_flash_<time>.bin` in the current directory, or the file given with `--backup`. It then erases the whole chip and writes `vehkernel_with_bl.hex`: the Vehkernel bootloader in S0 and the firmware from S4. Nothing of the vendor firmware, its settings or old parameters is left. The command takes about 2 minutes at 115200 baud. Nothing is erased if the backup fails or comes back short, and an existing backup file is never overwritten; `--no-backup` erases without one. Do not save flash backups inside the repository root: vendor firmware is not ours to redistribute, and any untracked dump file (for example with a custom `--backup` filename) causes `reuse_lint` to fail. Write backups to `/tmp/` or the git-ignored `vendor/` directory:
 
 ```bash
-tools/flash/flash_serial.py new-board
+tools/flash/flash_serial.py new-board --backup /tmp/c50c_v1_1_flash.bin
 ```
 
 `backup <file>` only reads the chip, and `reset` restarts the board through the download circuit. The system bootloader runs at 115200 baud unless given `--baud`. The same commands rescue a board whose bootloader is damaged.
@@ -81,11 +94,13 @@ tools/flash/deploy.py pi@companion --port /dev/ttyACM1 update
 tools/flash/deploy.py pi@companion new-board
 ```
 
-The bundle is unpacked into `~/vehkernel/vehkernel-<preset>-<commit>/` on the companion computer (`--remote-dir` changes `vehkernel`), replacing an older copy of the same build, and stays there for the Link monitor. ssh options such as the port and the key go in `~/.ssh/config`; `--dry-run` prints the commands without running them. Stop anything that holds the board's serial device there first, such as the ROS2 Bridge.
+The bundle is unpacked into `~/vehkernel/vehkernel-<preset>-<commit>/` on the companion computer (`--remote-dir` changes `vehkernel`), replacing an older copy of the same build, and stays there for the Link monitor. Ensure `openssh-server` is running on the companion computer and put ssh options such as the port and key in `~/.ssh/config`; `--dry-run` prints the commands without running them.
+
+By default, `deploy.py` checks if the user `systemd` unit `vehkernel-bridge.service` is active on the companion computer ([Running the Bridge as a user service](ros2-bridge.md#running-the-bridge-as-a-user-service)), stops it before flashing, and restarts it afterwards—even if flashing fails or is interrupted—without requiring `sudo`. Pass `--bridge-service <unit>` to coordinate a differently named user unit, or `--no-bridge-service` to skip `systemd` coordination. When `systemctl` is absent or the unit is not active, coordination is a clean no-op. Stop any manually started Bridge or `link_monitor.py` session that holds the serial device first.
 
 ## Over SWD
 
-Connect an ST-Link to the board's SWD header. OpenOCD runs on the host, outside the development container, since the probe is a USB device. A new board gets the bootloader and the firmware; later, the firmware alone:
+Connect an ST-Link to the board's SWD header. OpenOCD runs on the host, outside the development container, since the probe is a USB device. Install `openocd` and the ST-Link udev rules (`tools/setup/udev/99-vehkernel.rules`, `plugdev` / `uaccess`) via `tools/setup/vk_setup.py --role flash` so OpenOCD runs without `sudo`. A new board gets the bootloader and the firmware; later, the firmware alone:
 
 ```bash
 openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program build/c50c-v1_1/app/vehkernel_with_bl.hex verify reset exit"
