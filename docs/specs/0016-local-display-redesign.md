@@ -1,8 +1,8 @@
 # Spec 0016: the local display redesigned, with graphics, gestures and more settings
 
-**Status**: in progress. Issue: [#203](https://github.com/chimu0510/VehKernel/issues/203); tickets [#204](https://github.com/chimu0510/VehKernel/issues/204) to [#211](https://github.com/chimu0510/VehKernel/issues/211). Agreed with the maintainer on 2026-11-26.
+**Status**: done. Issue: [#203](https://github.com/chimu0510/VehKernel/issues/203); tickets [#204](https://github.com/chimu0510/VehKernel/issues/204) to [#211](https://github.com/chimu0510/VehKernel/issues/211), and [#212](https://github.com/chimu0510/VehKernel/issues/212) for the run time. The hardware check in [#211](https://github.com/chimu0510/VehKernel/issues/211) confirmed it on 2026-11-27 on the C50C V1.1 through the maintainer's Raspberry Pi 5; a save refused by the parameter service could not be reached from the menu on the board, and the pixel shift was too small to see by eye. Its findings are #213, #214 and #215.
 
-Until this spec is done, this file and its issue carry the same spec; update both in the same edit.
+This spec is done and no longer edited; later decisions live in the ADRs and the code, which win where they differ.
 
 ## Problem Statement
 
