@@ -1,9 +1,6 @@
 {
   "name": "Vehkernel",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
+  "image": "ghcr.io/chimu0510/vehkernel-dev:latest",
   "remoteUser": "ubuntu",
   "customizations": {
     "vscode": {

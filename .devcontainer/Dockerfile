@@ -120,3 +120,9 @@ RUN apt-get update \
         "clang-18=${CLANG_VERSION}" "libclang-rt-18-dev=${CLANG_VERSION}" "llvm-18=${CLANG_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 ENV PATH=$PATH:/usr/lib/llvm-18/bin
+
+# Allow git operations (such as git describe and reuse lint) on bind-mounted
+# repositories regardless of host/container UID differences (spec 0017).
+# System-wide config (/etc/gitconfig) applies to root, ubuntu, and any host UID
+# mapped via `docker run -u "$(id -u):$(id -g)"` with HOME=/tmp.
+RUN git config --system --add safe.directory '*'

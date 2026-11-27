@@ -18,15 +18,36 @@ jobs:
         with:
           submodules: true
 
-      - name: Build devcontainer image
+      # Content hash over the inputs that define the devcontainer image (ADR-0016,
+      # spec 0017). Must stay identical to .github/workflows/devcontainer.yml.
+      - name: Compute devcontainer image tag
+        id: devcontainer
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
+          hash=$(sha256sum .devcontainer/Dockerfile pyproject.toml uv.lock .python-version | sha256sum | cut -c1-12)
+          echo "image=ghcr.io/${owner}/vehkernel-dev" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Pull or build devcontainer image
         timeout-minutes: 30
-        run: docker build -t vehkernel-dev -f .devcontainer/Dockerfile .
+        env:
+          IMAGE_REF: ${{ steps.devcontainer.outputs.image }}:${{ steps.devcontainer.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if docker pull "${IMAGE_REF}"; then
+            docker tag "${IMAGE_REF}" vehkernel-dev:latest
+          else
+            echo "Pre-built image ${IMAGE_REF} not available; building locally."
+            docker build -t vehkernel-dev:latest -f .devcontainer/Dockerfile .
+          fi
 
       - name: Build presets, run L0 checks and host tests
         run: |
-          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev bash -eo pipefail -c '
-            # The container runs as root on a checkout owned by the runner user; without
-            # this, git refuses it and the bundles and images get no commit.
+          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev:latest bash -eo pipefail -c '
+            # Fallback in case an older image without system-wide safe.directory is used.
             git config --global --add safe.directory /work
             for preset in c50c-v1_1 c50c-v1_1-bringup c50c-v1_1-examples sitl sitl-examples test fuzz; do
               cmake --preset "$preset"
@@ -62,7 +83,7 @@ jobs:
       # Each Link fuzz target for 60 s, three at a time (docs/guide/testing.md).
       - name: Fuzz the Link decoders
         run: |
-          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev ctest --preset fuzz
+          docker run --rm -v "$PWD:/work" -w /work vehkernel-dev:latest ctest --preset fuzz
 
       - name: Keep fuzzer findings
         if: failure()
@@ -143,6 +164,8 @@ jobs:
           cp -r repo-checkout/tools/link/tests bundle/tools/link/tests
           cp -r repo-checkout/tools/log/tests bundle/tools/log/tests
           cp -r repo-checkout/tools/flash/tests bundle/tools/flash/tests
+          mkdir -p setup-tools/tools
+          cp -a repo-checkout/tools/setup setup-tools/tools/setup
           cp repo-checkout/tools/bundle/tests/requirements-py310.txt .
           rm -rf repo-checkout
 
@@ -171,3 +194,11 @@ jobs:
             --ignore=tools/log/tests/test_replay.py \
             --ignore=tools/flash/tests/test_deploy.py \
             tools/link/tests tools/log/tests tools/flash/tests
+
+      # Run setup tool unit tests on Python 3.10 (spec 0017, ADR-0028).
+      - name: Run setup tool unit tests on Python 3.10
+        working-directory: setup-tools
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m pytest -q -p no:cacheprovider tools/setup/tests
