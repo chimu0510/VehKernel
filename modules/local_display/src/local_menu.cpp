@@ -528,7 +528,7 @@ void draw_edit(const LocalMenu& menu, Canvas& canvas)
         canvas.text(x + 2, box_y + 2, label, !selected);
         x += width + 3;
     }
-    canvas.text(left, hint_y, menu.needs_reboot(menu.position()) ? "REBOOT NEEDED" : "2X:DO HOLD:DISCARD");
+    canvas.text(left, hint_y, "2X:DO HOLD:DISCARD");
 }
 
 }  // namespace

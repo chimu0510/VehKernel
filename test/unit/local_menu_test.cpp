@@ -843,6 +843,21 @@ TEST_F(LocalMenuTest, ASavedEditWithARebootRequiredMatchesItsImage)
     expect_golden("edit_saved_reboot", panel_image(menu));
 }
 
+TEST_F(LocalMenuTest, TheEditScreenOfAParameterThatNeedsARebootKeepsTheKeyHint)
+{
+    edit(0);
+    run_action(MenuAction::Increase);
+    run_action(MenuAction::Save);
+    menu.tick(now + LocalMenu::result_show_us, false);
+    ASSERT_EQ(menu.state(), MenuState::List);
+    ASSERT_TRUE(menu.needs_reboot(0));
+    double_click();  // edit the same parameter again, still unsaved
+    ASSERT_EQ(menu.state(), MenuState::Edit);
+    ASSERT_EQ(menu.position(), 0U);
+    ASSERT_TRUE(menu.needs_reboot(0));
+    expect_golden("edit_reboot_pending", panel_image(menu));
+}
+
 TEST_F(LocalMenuTest, ARefusedEditMatchesItsImage)
 {
     edit(2);
