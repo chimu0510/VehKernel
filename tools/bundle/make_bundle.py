@@ -164,12 +164,25 @@ def collect_files(source_dir: Path, build_dir: Path, board: str | None) -> list[
     if uploader.is_file():
         entries.append((uploader, "tools/bootloader/external/uploader.py"))
 
-    # 7. tools/bundle/README.md
+    # 7. tools/setup/ runtime tools and templates (tests/ and ruff.toml left out)
+    for rel in (
+        "tools/setup/vk_setup.py",
+        "tools/setup/ntp_offset.py",
+        "tools/setup/vk",
+        "tools/setup/udev/99-vehkernel.rules",
+        "tools/setup/systemd/vehkernel-bridge.service",
+        "tools/setup/systemd/bridge.env.example",
+    ):
+        p = source_dir / rel
+        if p.is_file():
+            entries.append((p, rel))
+
+    # 8. tools/bundle/README.md
     readme = source_dir / "tools" / "bundle" / "README.md"
     if readme.is_file():
         entries.append((readme, "tools/bundle/README.md"))
 
-    # 8. generated/schema/python/**/*.py
+    # 9. generated/schema/python/**/*.py
     schema_py = build_dir / "generated" / "schema" / "python"
     if schema_py.is_dir():
         for p in sorted(schema_py.rglob("*.py")):
@@ -177,12 +190,12 @@ def collect_files(source_dir: Path, build_dir: Path, board: str | None) -> list[
             if not should_skip(rel):
                 entries.append((p, rel))
 
-    # 9. generated/params/params.json
+    # 10. generated/params/params.json
     params_json = build_dir / "generated" / "params" / "params.json"
     if params_json.is_file():
         entries.append((params_json, "generated/params/params.json"))
 
-    # 10. Board outputs
+    # 11. Board outputs
     if board:
         board_json = build_dir / "generated" / "board" / "board.json"
         if board_json.is_file():

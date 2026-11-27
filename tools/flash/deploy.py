@@ -16,8 +16,12 @@ stm32flash; ssh options such as the port and the key belong in ~/.ssh/config.
     tools/flash/deploy.py --archive vehkernel-c50c-v1_1-abc1234.tar.gz pi@companion
 
 Run it on the host, not in the development container: it needs only ssh,
-and the build's archive is in the checkout. Stop anything that holds the
-board's serial device on the remote computer, such as the ROS2 Bridge, first.
+and the build's archive is in the checkout. By default it stops an active
+user systemd unit (vehkernel-bridge.service) before flashing and restarts it
+afterwards, even on flash failure, without requiring sudo; pass
+--bridge-service UNIT to name another unit or --no-bridge-service to skip
+systemd coordination. Stop any other program that holds the board's serial
+device on the remote computer first.
 
 Exits with flash_serial.py's exit code (0 on success, 1 when a transfer
 failed), 1 when the copy failed or ssh could not connect, and 2 on a usage
@@ -38,6 +42,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_PRESET = "c50c-v1_1"
 DEFAULT_REMOTE_DIR = "vehkernel"
+DEFAULT_BRIDGE_SERVICE = "vehkernel-bridge.service"
 # make_bundle.py names the archive's single top directory vehkernel-<preset>-<commit>.
 # The remote command removes that directory before it unpacks, so it must be a plain name.
 TOP_DIR = re.compile(r"vehkernel-[A-Za-z0-9._-]+")
@@ -111,13 +116,54 @@ def upload_command(ssh: str, host: str, remote_dir: str, archive_name: str) -> l
 
 
 def flash_command(ssh: str, host: str, remote_dir: str, bundle: Bundle, flash_args: list[str],
-                  tty: bool) -> list[str]:
-    """Unpacks the archive in place of an older copy of the bundle and runs its flasher."""
+                  tty: bool, bridge_service: str | None = DEFAULT_BRIDGE_SERVICE) -> list[str]:
+    """Unpacks the archive in place of an older copy of the bundle and runs its flasher.
+
+    When bridge_service is set, stops an active user systemd unit before flashing and restarts
+    it afterwards (including on flash failure or signal interruption), preserving the flasher's
+    exit code. A missing systemctl or an inactive/uninstalled unit is a silent no-op.
+    """
     archive = shlex.quote(bundle.archive.name)
     top = shlex.quote(bundle.top_dir)
     flasher = " ".join(shlex.quote(arg) for arg in ["python3", "tools/flash/flash_serial.py", *flash_args])
-    script = (f"cd {shlex.quote(remote_dir)} && rm -rf {top} && tar -xzf {archive} && rm -f {archive} "
-              f"&& cd {top} && exec {flasher}")
+    unpack = f"cd {shlex.quote(remote_dir)} && rm -rf {top} && tar -xzf {archive} && rm -f {archive} && cd {top}"
+    if not bridge_service:
+        script = f"{unpack} && exec {flasher}"
+    else:
+        unit = shlex.quote(bridge_service)
+        stop_msg = shlex.quote(f"Stopping {bridge_service}...")
+        restart_msg = shlex.quote(f"Restarting {bridge_service}...")
+        restart_warn = shlex.quote(f"warning: failed to restart {bridge_service}")
+        script = (
+            f"{unpack} || exit $?; "
+            '[ -n "${XDG_RUNTIME_DIR:-}" ] || XDG_RUNTIME_DIR="/run/user/$(id -u)"; '
+            "export XDG_RUNTIME_DIR; "
+            '[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || '
+            'DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"; '
+            "export DBUS_SESSION_BUS_ADDRESS; "
+            "vk_stopped_bridge=0; "
+            "vk_restart_bridge() { "
+            'if [ "$vk_stopped_bridge" -eq 1 ]; then '
+            "vk_stopped_bridge=0; "
+            f"echo {restart_msg} >&2; "
+            f"systemctl --user start {unit} || echo {restart_warn} >&2; "
+            "fi; "
+            "}; "
+            "trap vk_restart_bridge EXIT; "
+            "trap 'vk_restart_bridge; exit 130' INT; "
+            "trap 'vk_restart_bridge; exit 143' TERM; "
+            "trap 'vk_restart_bridge; exit 129' HUP; "
+            "if command -v systemctl >/dev/null 2>&1 "
+            f"&& systemctl --user is-active --quiet {unit} 2>/dev/null; then "
+            f"echo {stop_msg} >&2; "
+            f"systemctl --user stop {unit} || exit $?; "
+            "vk_stopped_bridge=1; "
+            "fi; "
+            f"{flasher}; "
+            "vk_rc=$?; "
+            "vk_restart_bridge; "
+            'exit "$vk_rc"'
+        )
     # A terminal makes ssh forward Ctrl-C to the flasher, and stream its output as it comes.
     return [ssh, "-t", host, script] if tty else [ssh, host, script]
 
@@ -135,11 +181,22 @@ def main(argv: list[str] | None = None) -> int:
                         help=f"the directory on the remote computer, relative to its home "
                              f"(default {DEFAULT_REMOTE_DIR})")
     parser.add_argument("--ssh", default="ssh", help="ssh executable")
+    parser.add_argument("--bridge-service", default=DEFAULT_BRIDGE_SERVICE, metavar="UNIT",
+                        help=f"user systemd unit to stop before flashing and restart afterwards "
+                             f"(default {DEFAULT_BRIDGE_SERVICE})")
+    parser.add_argument("--no-bridge-service", action="store_true",
+                        help="do not check, stop, or restart a user systemd bridge service")
     parser.add_argument("--dry-run", action="store_true", help="print the commands without running them")
     parser.add_argument("host", help="the companion computer, as ssh takes it (user@host or a ~/.ssh/config name)")
     parser.add_argument("flash_args", nargs=argparse.REMAINDER,
                         help="flash_serial.py's arguments (update when they name no command)")
     args = parser.parse_args(argv)
+    if args.no_bridge_service:
+        bridge_service: str | None = None
+    else:
+        bridge_service = args.bridge_service.strip()
+        if not bridge_service:
+            parser.error("--bridge-service must not be empty")
     flash_args = args.flash_args[1:] if args.flash_args[:1] == ["--"] else args.flash_args
     if not FLASH_COMMANDS.intersection(flash_args):
         flash_args = [*flash_args, "update"]
@@ -158,7 +215,8 @@ def main(argv: list[str] | None = None) -> int:
                   f"rebuild with cmake --build --preset {args.preset} to deploy the checkout", file=sys.stderr)
 
     upload = upload_command(args.ssh, args.host, args.remote_dir, bundle.archive.name)
-    flash = flash_command(args.ssh, args.host, args.remote_dir, bundle, flash_args, sys.stdin.isatty())
+    flash = flash_command(args.ssh, args.host, args.remote_dir, bundle, flash_args, sys.stdin.isatty(),
+                          bridge_service=bridge_service)
     if args.dry_run:
         print(f"{shlex.join(upload)} < {shlex.quote(str(bundle.archive))}")
         print(shlex.join(flash))

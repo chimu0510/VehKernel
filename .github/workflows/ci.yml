@@ -164,8 +164,7 @@ jobs:
           cp -r repo-checkout/tools/link/tests bundle/tools/link/tests
           cp -r repo-checkout/tools/log/tests bundle/tools/log/tests
           cp -r repo-checkout/tools/flash/tests bundle/tools/flash/tests
-          mkdir -p setup-tools/tools
-          cp -a repo-checkout/tools/setup setup-tools/tools/setup
+          cp -r repo-checkout/tools/setup/tests bundle/tools/setup/tests
           cp repo-checkout/tools/bundle/tests/requirements-py310.txt .
           rm -rf repo-checkout
 
@@ -179,10 +178,11 @@ jobs:
       - name: Install dependencies
         run: pip install --no-deps -r requirements-py310.txt
 
-      # Run unit tests on Python 3.10 from the unpacked bundle (spec 0014 Seam B, ADR-0026).
+      # Run unit tests on Python 3.10 from the unpacked bundle (spec 0014 Seam B, ADR-0026, spec 0017).
       # The tools the bundle leaves out have their tests left out too: replay.py needs
-      # the native replay binary, and deploy.py runs on the development host (#199);
-      # ctest runs both tests in the build job.
+      # the native replay binary, deploy.py runs on the development host (#199), and
+      # test_templates.py asserts on repository-only ruff.toml; ctest runs all three in
+      # the build job.
       - name: Run host tool unit tests on Python 3.10
         working-directory: bundle
         env:
@@ -193,12 +193,5 @@ jobs:
           python -m pytest -q -p no:cacheprovider \
             --ignore=tools/log/tests/test_replay.py \
             --ignore=tools/flash/tests/test_deploy.py \
-            tools/link/tests tools/log/tests tools/flash/tests
-
-      # Run setup tool unit tests on Python 3.10 (spec 0017, ADR-0028).
-      - name: Run setup tool unit tests on Python 3.10
-        working-directory: setup-tools
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-        run: |
-          python -m pytest -q -p no:cacheprovider tools/setup/tests
+            --ignore=tools/setup/tests/test_templates.py \
+            tools/link/tests tools/log/tests tools/flash/tests tools/setup/tests

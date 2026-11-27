@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -20,6 +22,17 @@ sys.path.insert(0, str(REPO_ROOT / "tools" / "link"))
 from make_bundle import built_archive, make_bundle  # noqa: E402
 from vklink.bundle import bundle_root  # noqa: E402
 
+SETUP_EXEC_FILES = (
+    "tools/setup/vk_setup.py",
+    "tools/setup/ntp_offset.py",
+    "tools/setup/vk",
+)
+SETUP_DATA_FILES = (
+    "tools/setup/udev/99-vehkernel.rules",
+    "tools/setup/systemd/vehkernel-bridge.service",
+    "tools/setup/systemd/bridge.env.example",
+)
+
 
 def check_bundle_contents(
     archive_path: Path,
@@ -29,10 +42,11 @@ def check_bundle_contents(
 ) -> None:
     assert archive_path.is_file(), f"Bundle archive {archive_path} does not exist"
 
-    # 1. Unpack into an empty directory
+    # 1. Unpack into an empty directory and record tar member modes
     extract_target = work_dir / "unpacked"
     extract_target.mkdir(parents=True)
     with tarfile.open(archive_path, "r:gz") as tar:
+        tar_modes = {m.name: m.mode for m in tar.getmembers()}
         tar.extractall(extract_target)
 
     bundle_dirs = [d for d in extract_target.iterdir() if d.is_dir()]
@@ -56,25 +70,57 @@ def check_bundle_contents(
         f"Missing in extracted: {set(manifest['files']) - set(extracted_files)}"
     )
 
-    # 4. Check param_set_hash equals build's params.json
+    # 4. Check setup tools and templates are present with expected modes, and tests/ruff.toml are excluded
+    top_name = bundle_dir.name
+    for rel in SETUP_EXEC_FILES:
+        assert rel in manifest["files"], f"Missing bundled setup executable {rel}"
+        assert tar_modes.get(f"{top_name}/{rel}") == 0o755, f"Expected 0755 in tar for {rel}"
+        unpacked = bundle_dir / rel
+        assert unpacked.is_file() and os.access(unpacked, os.X_OK), f"Unpacked {rel} is not executable"
+
+    for rel in SETUP_DATA_FILES:
+        assert rel in manifest["files"], f"Missing bundled setup template {rel}"
+        assert tar_modes.get(f"{top_name}/{rel}") == 0o644, f"Expected 0644 in tar for {rel}"
+        unpacked = bundle_dir / rel
+        assert unpacked.is_file()
+        assert (stat.S_IMODE(unpacked.stat().st_mode) & 0o111) == 0, f"Unpacked {rel} should not be executable"
+
+    assert "tools/setup/ruff.toml" not in manifest["files"]
+    assert not any(f.startswith("tools/setup/tests/") for f in manifest["files"])
+
+    # 5. Check vk_setup.py --role flash --dry-run runs cleanly from the unpacked bundle directory
+    vk_setup_res = subprocess.run(
+        [sys.executable, str(bundle_dir / "tools" / "setup" / "vk_setup.py"), "--role", "flash", "--dry-run"],
+        cwd=bundle_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert vk_setup_res.returncode == 0, (
+        f"vk_setup.py --role flash --dry-run failed from unpacked bundle:\n"
+        f"stdout: {vk_setup_res.stdout}\nstderr: {vk_setup_res.stderr}"
+    )
+    assert "/etc/udev/rules.d/99-vehkernel.rules" in vk_setup_res.stdout
+
+    # 6. Check param_set_hash equals build's params.json
     build_params_file = build_dir / "generated" / "params" / "params.json"
     assert build_params_file.is_file(), f"Build params.json missing at {build_params_file}"
     build_params = json.loads(build_params_file.read_text(encoding="utf-8"))
     assert manifest["param_set_hash"] == build_params["set_hash"]
 
-    # 5. Check protocol_version equals the firmware's
+    # 7. Check protocol_version equals the firmware's
     hpp_file = source_dir / "modules" / "link" / "include" / "vk" / "link" / "frame.hpp"
     m = re.search(r"protocol_version\s*=\s*(\d+)\s*;", hpp_file.read_text(encoding="utf-8"))
     assert m, f"Could not find protocol_version in {hpp_file}"
     firmware_proto = int(m.group(1))
     assert manifest["protocol_version"] == firmware_proto
 
-    # 6. Check that bundle_root resolves for tools/link/link_monitor.py inside the bundle
+    # 8. Check that bundle_root resolves for tools/link/link_monitor.py inside the bundle
     monitor_path = bundle_dir / "tools" / "link" / "link_monitor.py"
     assert monitor_path.is_file(), f"Missing {monitor_path}"
     assert bundle_root(monitor_path) == bundle_dir.resolve()
 
-    # 7. Repack the same build into a second directory and check archive bytes are equal
+    # 9. Repack the same build into a second directory and check archive bytes are equal
     repack_output_dir = work_dir / "repack_bundle"
     repack_archive = work_dir / "repack.tar.gz"
 

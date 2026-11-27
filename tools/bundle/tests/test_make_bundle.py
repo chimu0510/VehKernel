@@ -76,6 +76,25 @@ def setup_fake_source_and_build(root: Path) -> tuple[Path, Path]:
     uploader.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     uploader.chmod(0o755)
 
+    # tools/setup/ runtime tools and templates (tests/, ruff.toml, __pycache__ stay out)
+    setup_dir = src / "tools" / "setup"
+    (setup_dir / "udev").mkdir(parents=True)
+    (setup_dir / "systemd").mkdir(parents=True)
+    (setup_dir / "tests").mkdir(parents=True)
+    (setup_dir / "__pycache__").mkdir(parents=True)
+    (setup_dir / "vk_setup.py").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    (setup_dir / "vk_setup.py").chmod(0o755)
+    (setup_dir / "ntp_offset.py").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    (setup_dir / "ntp_offset.py").chmod(0o755)
+    (setup_dir / "vk").write_text("#!/usr/bin/env sh\n", encoding="utf-8")
+    (setup_dir / "vk").chmod(0o755)
+    (setup_dir / "udev" / "99-vehkernel.rules").write_text("# udev rules\n", encoding="utf-8")
+    (setup_dir / "systemd" / "vehkernel-bridge.service").write_text("[Unit]\n", encoding="utf-8")
+    (setup_dir / "systemd" / "bridge.env.example").write_text("ROS_DOMAIN_ID=0\n", encoding="utf-8")
+    (setup_dir / "ruff.toml").write_text('target-version = "py310"\n', encoding="utf-8")
+    (setup_dir / "tests" / "test_vk_setup.py").write_text("# setup test\n", encoding="utf-8")
+    (setup_dir / "__pycache__" / "vk_setup.cpython-310.pyc").write_bytes(b"\x00\x00\x00\x00")
+
     # tools/bundle/README.md
     bundle_readme = src / "tools" / "bundle" / "README.md"
     bundle_readme.parent.mkdir(parents=True)
@@ -149,6 +168,12 @@ def test_make_bundle_sitl(tmp_path: Path) -> None:
         "tools/flash/flash_serial.py",
         "tools/flash/run_uploader.py",
         "tools/bootloader/external/uploader.py",
+        "tools/setup/vk_setup.py",
+        "tools/setup/ntp_offset.py",
+        "tools/setup/vk",
+        "tools/setup/udev/99-vehkernel.rules",
+        "tools/setup/systemd/vehkernel-bridge.service",
+        "tools/setup/systemd/bridge.env.example",
         "tools/bundle/README.md",
         "generated/schema/python/vkmsg.py",
         "generated/schema/python/vkenums.py",
@@ -162,14 +187,14 @@ def test_make_bundle_sitl(tmp_path: Path) -> None:
     # Exclusions checked:
     all_unpacked = [p.relative_to(output_dir).as_posix() for p in output_dir.rglob("*") if p.is_file()]
     assert "tools/log/replay.py" not in all_unpacked
+    assert "tools/setup/ruff.toml" not in all_unpacked
     assert not any("__pycache__" in p for p in all_unpacked)
     assert not any(p.endswith(".pyc") for p in all_unpacked)
     assert not any("tests" in p for p in all_unpacked)
     assert not any("generators" in p for p in all_unpacked)
     assert not any("app/" in p for p in all_unpacked)
 
-    # Check file modes in output directory
-    for script_name in (
+    exec_scripts = (
         "tools/link/link_monitor.py",
         "tools/log/accel_check.py",
         "tools/log/compare.py",
@@ -177,13 +202,22 @@ def test_make_bundle_sitl(tmp_path: Path) -> None:
         "tools/flash/flash_serial.py",
         "tools/flash/run_uploader.py",
         "tools/bootloader/external/uploader.py",
-    ):
+        "tools/setup/vk_setup.py",
+        "tools/setup/ntp_offset.py",
+        "tools/setup/vk",
+    )
+
+    # Check file modes in output directory
+    for script_name in exec_scripts:
         p = output_dir / script_name
         mode = stat.S_IMODE(p.stat().st_mode)
         assert mode == 0o755, f"{script_name} has mode {oct(mode)}, expected 0755"
 
     for non_exec in (
         "tools/log/cut.py",
+        "tools/setup/udev/99-vehkernel.rules",
+        "tools/setup/systemd/vehkernel-bridge.service",
+        "tools/setup/systemd/bridge.env.example",
         "tools/bundle/README.md",
         "generated/params/params.json",
         "generated/schema/python/vkmsg.py",
@@ -209,15 +243,7 @@ def test_make_bundle_sitl(tmp_path: Path) -> None:
             assert m.uname == ""
             assert m.gname == ""
             rel = m.name.removeprefix("vehkernel-sitl-testcommit/")
-            if rel in (
-                "tools/link/link_monitor.py",
-                "tools/log/accel_check.py",
-                "tools/log/compare.py",
-                "tools/log/mag_cal.py",
-                "tools/flash/flash_serial.py",
-                "tools/flash/run_uploader.py",
-                "tools/bootloader/external/uploader.py",
-            ):
+            if rel in exec_scripts:
                 assert m.mode == 0o755
             else:
                 assert m.mode == 0o644
