@@ -318,6 +318,16 @@ TEST(LinksPage, WaitingAndNoData)
     EXPECT_TRUE(renders(inputs, draw_links_page, "links_waiting_no_data"));
 }
 
+TEST(LinksPage, LargestCountsStayInsideTheMargin)
+{
+    LinksPageInputs inputs = links_inputs(vk::msg::Mode::Companion, 0);
+    inputs.links.at(0) = link_status(static_cast<std::uint8_t>(vk::msg::HandshakeState::PeerSilent), 100, 4294967295U,
+                                     4294967295U, 4294967295U);
+    inputs.links.at(1) = link_status(static_cast<std::uint8_t>(vk::msg::HandshakeState::Waiting), 100, 4294967295U,
+                                     4294967295U, 4294967295U);
+    EXPECT_TRUE(renders(inputs, draw_links_page, "links_largest_counts"));
+}
+
 // ---- Remote control ----
 
 vk::msg::ManualControlInput gamepad()
