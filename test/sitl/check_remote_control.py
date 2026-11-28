@@ -31,7 +31,9 @@ vehicle_local_odometry_groundtruth and vehicle_local_odometry. In order:
   vehicle_status's 5 Hz and the host's timing.
 - The gamepad's emergency stop: B zeroes every output within 0.1 s; Y held
   1.2 s releases it and the sticks drive again; B held off for 5 s disarms
-  with EMERGENCY_STOP.
+  with EMERGENCY_STOP, and setpoints_rejected stays steady while disarmed in
+  MANUAL with the gamepad connected (both with the emergency stop engaged and
+  after releasing it).
 
     check_remote_control.py build/test/app/vehkernel-sitl --msg-dir build/test/generated/schema/python
 """
@@ -274,7 +276,21 @@ def check_emergency_stop(vehicle: OdometryVehicle, gamepad: Gamepad, failures: l
     disarm = disarm_after(vehicle, statuses)
     if disarm is None or disarm.disarm_reason != REASON["emergency stop"]:
         failures.append("the gamepad's emergency stop held 5 s did not disarm with EMERGENCY_STOP")
+    # Disarmed in MANUAL with only the gamepad connected: own setpoints are not rejected (#200).
+    before = latest_status(vehicle)
+    gamepad.hold(0.5)
+    after_estop = latest_status(vehicle)
     gamepad.hold(HOLD_S, buttons=button("Y"))
+    gamepad.hold(0.5)
+    after_release = latest_status(vehicle)
+    if (before is None or after_estop is None or after_release is None
+            or after_estop.setpoints_rejected != before.setpoints_rejected
+            or after_release.setpoints_rejected != before.setpoints_rejected):
+        failures.append(
+            f"disarmed in MANUAL, setpoints_rejected grew from "
+            f"{before.setpoints_rejected if before else 'none'} to "
+            f"{after_estop.setpoints_rejected if after_estop else 'none'} (estop) / "
+            f"{after_release.setpoints_rejected if after_release else 'none'} (released)")
 
 
 def main() -> int:

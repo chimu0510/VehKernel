@@ -10,11 +10,12 @@
 // as verified (ADR-0010) once the boot check of the revision-ID pins has
 // passed and the IMU has answered with its first sample.
 //
-// It follows the setpoints on actuator_setpoint and body_velocity_setpoint
-// that setpoint arbitration accepts (core::setpoint_accepted, while armed
-// and no bring-up case runs), and counts the others on vehicle_status: the
-// one accepted last decides whether the targets are idle, and either keeps
-// the setpoint timeout from running out. A bring-up request that passes its
+// It counts on vehicle_status the setpoints on actuator_setpoint and
+// body_velocity_setpoint that setpoint arbitration drops
+// (core::setpoint_accepted). Of the ones arbitration accepts, it follows
+// those that arrive while armed and outside a bring-up case: the one
+// accepted last decides whether the targets are idle, and either keeps the
+// setpoint timeout from running out. A bring-up request that passes its
 // checks goes out on bringup_command; the commander follows the case on
 // bringup_status. It refuses arming while local_menu shows the local menu
 // open (ADR-0022). From manual_control_input it judges whether the remote

@@ -92,24 +92,29 @@ void CommanderTask::run()
     }
 }
 
-// Setpoint arbitration (ADR-0005): only the setpoints the commander accepts
-// keep the timeout from running out or count as idle; the others are counted.
+// Setpoint arbitration (ADR-0005): setpoints from another source or at a level
+// the mode does not accept are counted on vehicle_status. Setpoints from the
+// source in control at an allowed level update the timeout and idle tracking
+// while armed and outside a bring-up case, and are otherwise ignored without
+// counting as rejected.
 void CommanderTask::follow_setpoints()
 {
+    const State& state = commander_.state();
     msg::ActuatorSetpoint direct{};
     while (setpoint_.copy(direct)) {
-        if (commander_.accepts_setpoint(direct.source, core::SetpointLevel::DirectActuator)) {
-            last_setpoint_ = direct;
-        } else {
+        if (!core::setpoint_accepted(state.mode, state.source, direct.source,
+                                     core::SetpointLevel::DirectActuator)) {
             ++setpoints_rejected_;
+        } else if (commander_.accepts_setpoint(direct.source, core::SetpointLevel::DirectActuator)) {
+            last_setpoint_ = direct;
         }
     }
     msg::BodyVelocitySetpoint body{};
     while (body_setpoint_.copy(body)) {
-        if (commander_.accepts_setpoint(body.source, core::SetpointLevel::BodyVelocity)) {
-            last_body_setpoint_ = body;
-        } else {
+        if (!core::setpoint_accepted(state.mode, state.source, body.source, core::SetpointLevel::BodyVelocity)) {
             ++setpoints_rejected_;
+        } else if (commander_.accepts_setpoint(body.source, core::SetpointLevel::BodyVelocity)) {
+            last_body_setpoint_ = body;
         }
     }
 }

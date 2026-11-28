@@ -17,6 +17,7 @@
 #include <vk/msg/estimator_attitude.hpp>
 #include <vk/msg/estimator_restart.hpp>
 #include <vk/msg/imu_sample.hpp>
+#include <vk/msg/manual_control_input.hpp>
 #include <vk/msg/vehicle_attitude.hpp>
 #include <vk/msg/vehicle_command.hpp>
 #include <vk/msg/vehicle_command_ack.hpp>
@@ -299,6 +300,93 @@ TEST_F(CommanderTaskTest, SetpointsFromASourceNotInControlAreDroppedAndCounted)
     // vehicle_status comes five times a second: at most one interval behind.
     EXPECT_LE(status.setpoints_rejected, task.setpoints_rejected());
     EXPECT_GE(status.setpoints_rejected + CommanderTask::status_interval_us / interval_us, task.setpoints_rejected());
+}
+
+TEST_F(CommanderTaskTest, DisarmedSetpointsFromTheSourceInControlAreNotCountedRejected)
+{
+    using vk::core::Mode;
+    using vk::core::remote_control;
+    ASSERT_EQ(request(queue, vk::core::Command::Mode, to_u8(Mode::Manual), remote_control).result,
+              to_u8(vk::core::ModeResult::Ok));
+    // Engage the emergency stop as well, matching a vehicle left disarmed in MANUAL (#200).
+    ASSERT_TRUE(request(queue, vk::core::Command::EmergencyStop, 1, remote_control).emergency_stop);
+    ASSERT_FALSE(task.armed());
+
+    const std::uint32_t before = task.setpoints_rejected();
+    for (int i = 0; i < 60; ++i) {
+        const float vx = i < 30 ? 0.0F : 0.3F;
+        body.publish({.timestamp = fake_now, .source = remote_control, .vx = vx, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+    }
+    EXPECT_EQ(task.setpoints_rejected(), before);
+
+    // Released, still disarmed: own body velocity setpoints still do not count as rejected.
+    ASSERT_FALSE(request(queue, vk::core::Command::EmergencyStop, 0, remote_control).emergency_stop);
+    for (int i = 0; i < 40; ++i) {
+        body.publish({.timestamp = fake_now, .source = remote_control, .vx = 0.25F, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+    }
+    EXPECT_EQ(task.setpoints_rejected(), before);
+
+    // Non-zero disarmed setpoints were ignored, so they do not trip SetpointsActive on arming.
+    vk::core::Publication<vk::msg::ManualControlInput> manual_pub{0};
+    manual_pub.publish({.timestamp = fake_now, .connected = true, .sticks = {0.0F, 0.0F, 0.0F, 0.0F}});
+    step(interval_us);
+    const auto armed = request(queue, vk::core::Command::Arm, 1, remote_control);
+    EXPECT_EQ(armed.result, to_u8(ArmingResult::Ok));
+    EXPECT_TRUE(armed.armed);
+    ASSERT_EQ(request(queue, vk::core::Command::Arm, 0, remote_control).result, to_u8(ArmingResult::Ok));
+
+    // A Link (not in control) or a disallowed level still counts as rejected while disarmed.
+    for (int i = 0; i < 5; ++i) {
+        body.publish({.timestamp = fake_now, .source = link0, .vx = 0.2F, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+    }
+    EXPECT_EQ(task.setpoints_rejected(), before + 5U);
+
+    direct.publish({.timestamp = fake_now, .source = remote_control, .wheel_speed = {1.0F, 1.0F, NAN, NAN}});
+    step(interval_us);
+    EXPECT_EQ(task.setpoints_rejected(), before + 6U);
+
+    // vehicle_status publishes the steady count.
+    step(CommanderTask::status_interval_us);
+    vk::core::Subscription<vk::msg::VehicleStatus> statuses{0};
+    vk::msg::VehicleStatus status{};
+    ASSERT_TRUE(statuses.copy(status));
+    EXPECT_EQ(status.setpoints_rejected, before + 6U);
+}
+
+TEST_F(CommanderTaskTest, TakeoverCountsLinksDroppedSetpointsOnly)
+{
+    using vk::core::Mode;
+    using vk::core::remote_control;
+    arm();
+    vk::core::Publication<vk::msg::ManualControlInput> manual_pub{0};
+    manual_pub.publish({.timestamp = fake_now, .connected = true, .sticks = {0.0F, 0.0F, 0.0F, 0.0F}});
+    step(interval_us);
+    ASSERT_EQ(request(queue, vk::core::Command::Mode, to_u8(Mode::Manual), remote_control).result,
+              to_u8(vk::core::ModeResult::Ok));
+    ASSERT_TRUE(task.armed());
+
+    const std::uint32_t before = task.setpoints_rejected();
+    for (int i = 0; i < 20; ++i) {
+        manual_pub.publish({.timestamp = fake_now, .connected = true, .sticks = {0.0F, 0.0F, 0.0F, 0.0F}});
+        body.publish({.timestamp = fake_now, .source = remote_control, .vx = 0.2F, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+        body.publish({.timestamp = fake_now, .source = link0, .vx = 0.2F, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+    }
+    EXPECT_TRUE(task.armed());
+    EXPECT_EQ(task.setpoints_rejected() - before, 20U);
+
+    // Disarmed after takeover: RC setpoints stop counting as active and do not count as rejected.
+    ASSERT_EQ(request(queue, vk::core::Command::Arm, 0, remote_control).result, to_u8(ArmingResult::Ok));
+    const std::uint32_t after_disarm = task.setpoints_rejected();
+    for (int i = 0; i < 20; ++i) {
+        body.publish({.timestamp = fake_now, .source = remote_control, .vx = 0.0F, .vy = 0.0F, .yaw_rate = 0.0F});
+        step(interval_us);
+    }
+    EXPECT_EQ(task.setpoints_rejected(), after_disarm);
 }
 
 TEST_F(CommanderTaskTest, ABringupRequestIsAnsweredWithItsRefusal)
