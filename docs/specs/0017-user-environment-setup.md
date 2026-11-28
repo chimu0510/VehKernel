@@ -1,7 +1,7 @@
 # Spec 0017: user environment setup and deployment
 
-**Status**: in progress. Issue: [#216](https://github.com/chimu0510/VehKernel/issues/216); tickets #217 to #223, with the fresh-machine and hardware check in #223.
-Until this spec is done, this file and its issue carry the same spec; update both in the same edit.
+**Status**: done. Issue: [#216](https://github.com/chimu0510/VehKernel/issues/216); tickets #217 to #223, confirmed on Ubuntu 24.04 development host, Raspberry Pi 5 companion with C50C V1.1, and Ubuntu 24.04 desktop RViz2 in #223.
+This spec is done and no longer edited; later decisions live in the ADRs and the code, which win where they differ.
 
 ## Problem Statement
 
