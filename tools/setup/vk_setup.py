@@ -24,6 +24,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import TextIO
 
@@ -226,23 +227,53 @@ class SystemEnv:
     def systemd_running(self) -> bool:
         return self.which("systemctl") is not None and self.is_dir(RUN_SYSTEMD_DIR)
 
+    def user_systemd_env(self) -> dict[str, str]:
+        """Return env overrides so `systemctl --user` finds the user bus over SSH."""
+        env = self.environ
+        overrides: dict[str, str] = {}
+        xdg_runtime_dir = env.get("XDG_RUNTIME_DIR") or f"/run/user/{self.euid}"
+        if not env.get("XDG_RUNTIME_DIR"):
+            overrides["XDG_RUNTIME_DIR"] = xdg_runtime_dir
+        if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+            overrides["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={xdg_runtime_dir}/bus"
+        return overrides
+
+    def wait_for_user_bus(self, *, timeout: float = 5.0) -> bool:
+        """Wait briefly for the user D-Bus socket after enabling linger."""
+        env = {**self.environ, **self.user_systemd_env()}
+        bus_addr = env.get("DBUS_SESSION_BUS_ADDRESS", "")
+        if not bus_addr.startswith("unix:path="):
+            return True
+        bus_path = Path(bus_addr.removeprefix("unix:path=").split(",", 1)[0])
+        deadline = time.monotonic() + timeout
+        while True:
+            if self.path_exists(bus_path):
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.1)
+
     def service_is_active(self, unit: str, *, user: bool = False) -> bool:
         if not self.systemd_running():
             return False
         cmd = ["systemctl"]
+        env_overrides: dict[str, str] | None = None
         if user:
             cmd.append("--user")
+            env_overrides = self.user_systemd_env() or None
         cmd.extend(["is-active", "--quiet", unit])
-        return self.run_cmd(cmd, capture=True).returncode == 0
+        return self.run_cmd(cmd, env_overrides=env_overrides, capture=True).returncode == 0
 
     def service_is_enabled(self, unit: str, *, user: bool = False) -> bool:
         if not self.systemd_running():
             return False
         cmd = ["systemctl"]
+        env_overrides: dict[str, str] | None = None
         if user:
             cmd.append("--user")
+            env_overrides = self.user_systemd_env() or None
         cmd.extend(["is-enabled", "--quiet", unit])
-        return self.run_cmd(cmd, capture=True).returncode == 0
+        return self.run_cmd(cmd, env_overrides=env_overrides, capture=True).returncode == 0
 
     def dpkg_installed(self, package: str) -> bool:
         if self.which("dpkg-query") is None:
@@ -1063,12 +1094,28 @@ class SetupRunner:
                 self.write_user_file(env_dest, env_content, mode=0o644)
 
             if self.env.systemd_running():
-                self.run_action(["systemctl", "--user", "daemon-reload"])
-                self.run_action(["systemctl", "--user", "enable", "vehkernel-bridge.service"])
-                if self.env.which("loginctl") is not None:
+                linger_file = LINGER_DIR / self.env.user
+                if self.env.path_exists(linger_file):
+                    self.out(f"[ok] systemd lingering is already enabled for '{self.env.user}'")
+                elif self.env.which("loginctl") is not None:
                     self.run_action(["loginctl", "enable-linger", self.env.user], privileged=True)
+                    if not self.dry_run:
+                        self.env.wait_for_user_bus()
                 else:
                     self.out("[skip] loginctl not found; skipping enable-linger")
+                user_env = self.env.user_systemd_env() or None
+                self.run_action(
+                    ["systemctl", "--user", "daemon-reload"],
+                    env_overrides=user_env,
+                    failure_hint=(
+                        f"Ensure user@{self.env.euid}.service is running and dbus-user-session is installed "
+                        f"({self._sudo_cmd_hint('apt-get install -y dbus-user-session')})."
+                    ),
+                )
+                self.run_action(
+                    ["systemctl", "--user", "enable", "vehkernel-bridge.service"],
+                    env_overrides=user_env,
+                )
             else:
                 self.out("[skip] systemd is not running; skipping systemctl enable and loginctl enable-linger")
 

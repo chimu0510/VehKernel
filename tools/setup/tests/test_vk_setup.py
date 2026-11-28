@@ -133,6 +133,7 @@ class FakeSystemEnv(vk_setup.SystemEnv):
         self.commands: list[dict] = []
         self.written_files: list[tuple[Path, bytes, int | None]] = []
         self.created_dirs: list[Path] = []
+        self.waited_for_user_bus: int = 0
 
         # Populate bundled templates from real SETUP_DIR unless overridden in self.files.
         for rel in (Path("vk"), Path("udev/99-vehkernel.rules"), Path("systemd/vehkernel-bridge.service")):
@@ -217,6 +218,10 @@ class FakeSystemEnv(vk_setup.SystemEnv):
         if self._active_groups is not None:
             return set(self._active_groups)
         return set(self.user_groups_set)
+
+    def wait_for_user_bus(self, *, timeout: float = 5.0) -> bool:
+        self.waited_for_user_bus += 1
+        return True
 
     def service_is_active(self, unit: str, *, user: bool = False) -> bool:
         if not self.systemd_running():
@@ -898,6 +903,238 @@ def test_companion_install_bridge_service_and_preserves_existing_bridge_env():
     assert env.files[env_dest] == custom_env
     assert not any(path == env_dest for path, _, _ in env.written_files)
     assert "preserving existing" in env.output
+
+
+def _companion_base_packages() -> set[str]:
+    return {
+        "python3-serial",
+        "stm32flash",
+        "build-essential",
+        "ros-jazzy-ros-base",
+        "python3-colcon-common-extensions",
+        "python3-rosdep",
+        "git",
+    }
+
+
+def test_companion_install_bridge_service_enables_linger_before_systemctl_user_and_sets_bus_env():
+    udev_bytes = (SETUP_DIR / "udev" / "99-vehkernel.rules").read_bytes()
+    env = FakeSystemEnv(
+        euid=1001,
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        files={
+            vk_setup.UDEV_DEST: udev_bytes,
+            vk_setup.ROS_LIST_PATH: b"deb ...\n",
+            vk_setup.ROSDEP_DEFAULT_LIST: b"yaml ...\n",
+        },
+    )
+    rc = vk_setup.main(["--role", "companion", "--install-bridge-service"], env=env)
+    assert rc == 0
+
+    argvs = env.command_argvs()
+    linger_idx = argvs.index(["sudo", "loginctl", "enable-linger", "pilot"])
+    reload_idx = argvs.index(["systemctl", "--user", "daemon-reload"])
+    enable_idx = argvs.index(["systemctl", "--user", "enable", "vehkernel-bridge.service"])
+    assert linger_idx < reload_idx < enable_idx
+
+    expected_bus_env = {
+        "XDG_RUNTIME_DIR": "/run/user/1001",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1001/bus",
+    }
+    assert env.commands[reload_idx]["env"] == expected_bus_env
+    assert env.commands[enable_idx]["env"] == expected_bus_env
+    assert env.waited_for_user_bus == 1
+
+
+def test_companion_install_bridge_service_skips_linger_when_already_enabled():
+    udev_bytes = (SETUP_DIR / "udev" / "99-vehkernel.rules").read_bytes()
+    env = FakeSystemEnv(
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        files={
+            vk_setup.UDEV_DEST: udev_bytes,
+            vk_setup.ROS_LIST_PATH: b"deb ...\n",
+            vk_setup.ROSDEP_DEFAULT_LIST: b"yaml ...\n",
+            vk_setup.LINGER_DIR / "pilot": b"",
+        },
+    )
+    rc = vk_setup.main(["--role", "companion", "--install-bridge-service"], env=env)
+    assert rc == 0
+
+    argvs = env.command_argvs()
+    assert not any("loginctl" in cmd for cmd in argvs)
+    assert not any(cmd[0] == "sudo" for cmd in argvs)
+    assert "[ok] systemd lingering is already enabled for 'pilot'" in env.output
+    assert env.waited_for_user_bus == 0
+    assert ["systemctl", "--user", "daemon-reload"] in argvs
+    assert ["systemctl", "--user", "enable", "vehkernel-bridge.service"] in argvs
+
+
+def test_wait_for_user_bus_checks_resolved_bus_socket():
+    ready_env = FakeSystemEnv(
+        euid=1005,
+        files={Path("/run/user/1005/bus"): b""},
+    )
+    assert vk_setup.SystemEnv.wait_for_user_bus(ready_env, timeout=0.0) is True
+
+    missing_env = FakeSystemEnv(euid=1005)
+    assert vk_setup.SystemEnv.wait_for_user_bus(missing_env, timeout=0.0) is False
+
+    custom_env = FakeSystemEnv(
+        euid=1005,
+        environ={"PATH": "/usr/bin", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/custom/bus,guid=abc"},
+        files={Path("/tmp/custom/bus"): b""},
+    )
+    assert vk_setup.SystemEnv.wait_for_user_bus(custom_env, timeout=0.0) is True
+
+
+def test_companion_install_bridge_service_preserves_existing_systemd_user_env():
+    udev_bytes = (SETUP_DIR / "udev" / "99-vehkernel.rules").read_bytes()
+    base_files = {
+        vk_setup.UDEV_DEST: udev_bytes,
+        vk_setup.ROS_LIST_PATH: b"deb ...\n",
+        vk_setup.ROSDEP_DEFAULT_LIST: b"yaml ...\n",
+        vk_setup.LINGER_DIR / "pilot": b"",
+    }
+
+    # Both already set -> preserved (no env overrides).
+    both_set = FakeSystemEnv(
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        environ={
+            "PATH": "/usr/bin:/bin",
+            "XDG_RUNTIME_DIR": "/tmp/custom-runtime",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/custom-bus",
+        },
+        files=base_files,
+    )
+    assert vk_setup.main(["--role", "companion", "--install-bridge-service"], env=both_set) == 0
+    user_cmds = [c for c in both_set.commands if c["argv"][:2] == ["systemctl", "--user"]]
+    assert len(user_cmds) == 2
+    assert all(c["env"] is None for c in user_cmds)
+
+    # Only XDG_RUNTIME_DIR set -> preserved, DBUS_SESSION_BUS_ADDRESS derived from it.
+    xdg_only = FakeSystemEnv(
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        environ={
+            "PATH": "/usr/bin:/bin",
+            "XDG_RUNTIME_DIR": "/tmp/custom-runtime",
+        },
+        files=base_files,
+    )
+    assert vk_setup.main(["--role", "companion", "--install-bridge-service"], env=xdg_only) == 0
+    xdg_cmds = [c for c in xdg_only.commands if c["argv"][:2] == ["systemctl", "--user"]]
+    assert len(xdg_cmds) == 2
+    assert all(c["env"] == {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/custom-runtime/bus"} for c in xdg_cmds)
+
+    # Only DBUS_SESSION_BUS_ADDRESS set -> preserved, XDG_RUNTIME_DIR defaulted from euid.
+    dbus_only = FakeSystemEnv(
+        euid=1003,
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        environ={
+            "PATH": "/usr/bin:/bin",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/custom-bus",
+        },
+        files=base_files,
+    )
+    assert vk_setup.main(["--role", "companion", "--install-bridge-service"], env=dbus_only) == 0
+    dbus_cmds = [c for c in dbus_only.commands if c["argv"][:2] == ["systemctl", "--user"]]
+    assert len(dbus_cmds) == 2
+    assert all(c["env"] == {"XDG_RUNTIME_DIR": "/run/user/1003"} for c in dbus_cmds)
+
+
+def test_companion_check_passes_user_systemd_env_to_systemctl_user():
+    class SystemdProbeEnv(FakeSystemEnv):
+        service_is_active = vk_setup.SystemEnv.service_is_active
+        service_is_enabled = vk_setup.SystemEnv.service_is_enabled
+
+    udev_bytes = (SETUP_DIR / "udev" / "99-vehkernel.rules").read_bytes()
+    unit_bytes = (SETUP_DIR / "systemd" / "vehkernel-bridge.service").read_bytes()
+    unit_dest = Path("/home/pilot/.config/systemd/user/vehkernel-bridge.service")
+    env_dest = Path("/home/pilot/.config/vehkernel/bridge.env")
+    base_files = {
+        vk_setup.UDEV_DEST: udev_bytes,
+        vk_setup.ROS_LIST_PATH: b"deb ...\n",
+        vk_setup.ROS_SETUP_BASH: b"# ros setup\n",
+        vk_setup.ROSDEP_DEFAULT_LIST: b"yaml ...\n",
+        unit_dest: unit_bytes,
+        env_dest: b"VK_BRIDGE_DEVICE=/dev/ttyACM0\n",
+        vk_setup.LINGER_DIR / "pilot": b"",
+    }
+    probe_handlers = {
+        ("systemctl", "is-active", "--quiet", "ModemManager.service"): vk_setup.CmdResult(returncode=3),
+        ("systemctl", "--user", "is-enabled", "--quiet", "vehkernel-bridge.service"): vk_setup.CmdResult(returncode=0),
+    }
+
+    # Unset in parent env (typical non-interactive SSH): user bus env is injected for --user, not for system units.
+    ssh_env = SystemdProbeEnv(
+        euid=1002,
+        bins={"sudo", "dpkg-query", "systemctl", "g++", "colcon", "rosdep"},
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        files=base_files,
+        cmd_handlers=probe_handlers,
+    )
+    assert vk_setup.main(["--role", "companion", "--install-bridge-service", "--check"], env=ssh_env) == 0
+    assert "[PASS] companion:bridge-service-enabled:" in ssh_env.output
+
+    mm_cmds = [
+        c
+        for c in ssh_env.commands
+        if c["argv"] == ["systemctl", "is-active", "--quiet", "ModemManager.service"]
+    ]
+    assert len(mm_cmds) == 1
+    assert mm_cmds[0]["env"] is None
+
+    enabled_cmds = [
+        c
+        for c in ssh_env.commands
+        if c["argv"] == ["systemctl", "--user", "is-enabled", "--quiet", "vehkernel-bridge.service"]
+    ]
+    assert len(enabled_cmds) == 1
+    assert enabled_cmds[0]["env"] == {
+        "XDG_RUNTIME_DIR": "/run/user/1002",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1002/bus",
+    }
+
+    # Already set in parent env: preserved without override.
+    desktop_env = SystemdProbeEnv(
+        euid=1002,
+        bins={"sudo", "dpkg-query", "systemctl", "g++", "colcon", "rosdep"},
+        packages=_companion_base_packages(),
+        user_groups={"dialout"},
+        environ={
+            "PATH": "/usr/bin:/bin",
+            "XDG_RUNTIME_DIR": "/tmp/xdg-1002",
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/xdg-1002/bus",
+        },
+        files=base_files,
+        cmd_handlers=probe_handlers,
+    )
+    assert vk_setup.main(["--role", "companion", "--install-bridge-service", "--check"], env=desktop_env) == 0
+    desktop_enabled = [
+        c
+        for c in desktop_env.commands
+        if c["argv"] == ["systemctl", "--user", "is-enabled", "--quiet", "vehkernel-bridge.service"]
+    ]
+    assert len(desktop_enabled) == 1
+    assert desktop_enabled[0]["env"] is None
+
+    # User-level service_is_active also injects user bus env when unset.
+    assert ssh_env.service_is_active("vehkernel-bridge.service", user=True) is True
+    active_user_cmds = [
+        c
+        for c in ssh_env.commands
+        if c["argv"] == ["systemctl", "--user", "is-active", "--quiet", "vehkernel-bridge.service"]
+    ]
+    assert len(active_user_cmds) == 1
+    assert active_user_cmds[0]["env"] == {
+        "XDG_RUNTIME_DIR": "/run/user/1002",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1002/bus",
+    }
 
 
 def test_companion_check_verifies_packages_tools_rosdep_and_service():
