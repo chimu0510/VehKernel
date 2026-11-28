@@ -74,6 +74,17 @@ A finding leaves its input in `build/fuzz/test/fuzz/artifacts/`. Run the target 
 
 `bridge/vehkernel_bridge/test/test_sitl_bridge.py` is a `launch_testing` test that starts SITL and the Bridge on UDP and checks the outputs, arming, `/cmd_vel`, the silence and the disarm on a killed Bridge (spec 0015, [ROS2 Bridge](ros2-bridge.md#testing)). It runs in the ROS2 image, not in the development container, with `colcon test` from the workspace of the guide. The environment variable `VK_SITL_EXECUTABLE` names the SITL executable of a `sitl` build; without it the test is skipped. CI builds SITL in the development container's job and passes it to the Bridge job of the same architecture, which runs the test with `--repeat until-pass:2` as above. The test takes about 25 s, since it waits out `COM_DISARM_IDLE` (10 s).
 
+## CI jobs
+
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs four jobs on every push and pull request:
+
+| Job | Runner / environment | What it checks |
+|---|---|---|
+| `build` | `ubuntu-24.04`, `ubuntu-24.04-arm` (development container) | Configures and builds all seven presets (`c50c-v1_1`, `c50c-v1_1-bringup`, `c50c-v1_1-examples`, `sitl`, `sitl-examples`, `test`, `fuzz`), runs `ctest --preset test` and `ctest --preset sitl-examples` (with `--repeat until-pass:2`), runs `ctest --preset fuzz`, and uploads the `bundles` and `sitl-*` artifacts |
+| `bridge` | `ubuntu-24.04`, `ubuntu-24.04-arm` (`ros:jazzy-ros-base`) | Builds `bridge/` with `-DVK_CLANG_TIDY=ON` and runs `colcon test` including the L5 `test_sitl_bridge.py` test against the `sitl-*` artifact from `build` |
+| `host-tools-py310` | `ubuntu-24.04` (pinned Python 3.10 outside the development container) | Unpacks the `c50c-v1_1` Host Tools Bundle produced by `build` and runs the bundled host-tool unit tests (`tools/link`, `tools/log`, `tools/flash`, `tools/setup`) on Python 3.10 against pinned runtime dependencies ([ADR-0026](../adr/0026-host-tools-bundle.md), [spec 0014](../specs/0014-host-tools-on-arm64.md)) |
+| `setup-clean-os` | `ubuntu-24.04` (clean `debian:bookworm-slim` and `ubuntu:24.04` containers) | Verifies fresh-machine onboarding without pre-installed compilers, ROS2, or rosdep state: runs `vk_setup.py --role flash` and `--check` (plus exit code `2` on unsupported roles) on clean Debian 12, and runs `vk_setup.py --role companion --yes --build-bridge` and `--check` end to end on clean Ubuntu 24.04 ([ADR-0028](../adr/0028-host-environment-setup.md), [spec 0017](../specs/0017-user-environment-setup.md)) |
+
 ## Bring-up image
 
 The bring-up test build (L4) runs the hardware bring-up cases at boot instead of the application: it reads the ICM20948's WHO_AM_I over software I2C and measures the IMU read rate. It never configures actuator outputs, so it is safe with motors connected. Build it in the development container, then run the bring-up runner on the **host** (requires `openocd` and ST-Link udev rules via `tools/setup/vk_setup.py --role flash`), which flashes it over SWD, reads the result block back and exits non-zero if a case fails or no results arrive:

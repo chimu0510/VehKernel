@@ -125,7 +125,7 @@ A display that is missing or does not answer affects nothing else: it is not par
 
 ## In SITL
 
-Build the `sitl` preset first (`vk cmake --preset sitl && vk cmake --build --preset sitl`). SITL simulates an SSD1306 inside the development container; `--display <path>` writes what it shows to a PBM image after every change (black while the display is off), which any image viewer opens, and the contrast to `<path>.contrast`. Write the file under `build/` (or `vendor/`) when running through `vk` so an image viewer on the host can open it and `reuse_lint` ignores it:
+Build the `sitl` preset first (`vk cmake --preset sitl && vk cmake --build --preset sitl`). SITL simulates an SSD1306 inside the development container; `--display <path>` writes what it shows to a PBM image after every change (black while the display is off), which any image viewer opens, and the contrast to `<path>.contrast`. Write the file under `build/` or `vendor/` (run `mkdir -p vendor` first if saving under `vendor/`) when running through `vk` so an image viewer on the host can open it and `reuse_lint` ignores it:
 
 ```bash
 vk build/sitl/app/vehkernel-sitl --duration 0 --display build/vk-display.pbm

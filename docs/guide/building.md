@@ -78,7 +78,7 @@ The host tools need the board's USB devices. They read the build tree that the c
 | [`stm32flash`](https://sourceforge.net/projects/stm32flash/) | `sudo apt install stm32flash` (0.7) | Flashing through the STM32 system bootloader ([Flashing](flashing.md#a-new-board-new-board)) |
 | [pyserial](https://pypi.org/project/pyserial/) | `sudo apt install python3-serial` (3.5, as `pyproject.toml` pins it) | The Link monitor on a serial port ([Link monitor](link-monitor.md)), and ArduPilot's `uploader.py`, which updates the firmware through the bootloader ([Flashing](flashing.md#updates-update)) |
 
-On the host, add your user to `dialout` for serial ports and `plugdev` for ST-Link probes (`sudo usermod -aG dialout,plugdev "$USER"`, then log out and back in), and install [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules) to `/etc/udev/rules.d/99-vehkernel.rules` (`sudo udevadm control --reload-rules && sudo udevadm trigger`). Disable `ModemManager` (`sudo systemctl disable --now ModemManager.service`), and remove `brltty` (`sudo apt purge brltty`) if no braille display is used; `uploader.py` warns about both. `ModemManager` probes new `/dev/ttyACM*` devices and may drive their DTR and RTS lines, which on a download port can reset the board or hold BOOT0 high. `tools/setup/vk_setup.py --role flash` automates all of these steps and `--role flash --check` verifies them.
+On the host, serial and SWD access also require `dialout`/`plugdev` group membership, the udev rules in [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation (so neither probes `/dev/ttyACM*` or toggles DTR/RTS on a download circuit). `tools/setup/vk_setup.py --role flash` automates all of these steps and `--role flash --check` verifies them; see [Environment setup](setup.md#udev-rules-99-vehkernelrules) for details and the manual commands.
 
 ## Presets
 
@@ -88,9 +88,9 @@ There is one CMake preset per build target:
 |---|---|
 | `c50c-v1_1` | C50C V1.1 firmware and bootloader. In `app/`: `vehkernel.elf`, `vehkernel.hex` and `vehkernel.bin` (the firmware alone, from S4), `vehkernel.apj` (ArduPilot's firmware file, ADR-0023) and `vehkernel_with_bl.hex` (the bootloader and the firmware, for a new board). In `bootloader/`: `vehkernel-bootloader.elf` and `.bin` (S0). Every firmware image carries ArduPilot's app descriptor, filled after linking with its CRCs, size, git hash, version and board ID |
 | `c50c-v1_1-bringup` | The C50C V1.1 bring-up image ([Testing](testing.md#bring-up-image)) |
-| `c50c-v1_1-examples` | The C50C V1.1 board examples ([Examples](examples.md)). In `examples/`: `example-NN-name.elf`, `.bin`, `.hex`, `.apj` |
+| `c50c-v1_1-examples` | The C50C V1.1 board examples ([Examples](examples.md)). In `app/examples/`: `example-NN-name.elf`, `.bin`, `.hex`, `.apj` |
 | `sitl` | SITL executable for the development host ([SITL](sitl.md)) |
-| `sitl-examples` | The SITL-compatible board examples ([Examples](examples.md)). In `examples/`: `example-NN-name` |
+| `sitl-examples` | The SITL-compatible board examples ([Examples](examples.md)). In `app/examples/`: `example-NN-name` |
 | `test` | Host tests, run with `ctest --preset test` ([Testing](testing.md)), and `vehkernel-replay` in `test/`, the replay executable that `tools/log/replay.py` runs ([Logging](logging.md#estimator-replay-and-comparison)) |
 | `fuzz` | The Link fuzz targets, built with Clang, libFuzzer and the sanitizers, run with `ctest --preset fuzz` ([Testing](testing.md#fuzzing-the-link-decoders)) |
 

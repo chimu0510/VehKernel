@@ -4,7 +4,7 @@ Thank you for helping. This page covers how work is proposed, how it is built an
 
 ## Before you start
 
-- **Read the design first.** The [README](README.md) gives the overview, the [ADRs](docs/adr/README.md) record why the firmware is built the way it is, and [`GLOSSARY.md`](GLOSSARY.md) defines the vocabulary. The most important boundary is [ADR-0001](docs/adr/0001-mcu-responsibility-boundary.md): the MCU does real-time estimation, low-level control and safety, never global localization or navigation.
+- **Read the design first.** The [README](README.md) gives the overview, [Architecture](docs/guide/architecture.md) and [Configuration and codegen](docs/guide/configuration-and-codegen.md) explain the software layers, bus, work queues, Kconfig, schemas and generators, the [ADRs](docs/adr/README.md) record why the firmware is built the way it is, and [`GLOSSARY.md`](GLOSSARY.md) defines the vocabulary. The most important boundary is [ADR-0001](docs/adr/0001-mcu-responsibility-boundary.md): the MCU does real-time estimation, low-level control and safety, never global localization or navigation.
 - **Open or find an issue before large changes.** A new board, driver, module or Link protocol, or anything that changes an ADR, starts as an issue so the approach can be agreed before code is written. Small fixes and documentation changes can go straight to a pull request.
 - **Write in English** with the glossary's terms, in the style of ArduPilot and PX4 documentation ([ADR-0021](docs/adr/0021-english-project-language.md)).
 
@@ -16,6 +16,11 @@ Everything that affects build output is pinned in the development container's im
 git clone --recurse-submodules https://github.com/chimu0510/VehKernel.git
 cd VehKernel
 tools/setup/vk_setup.py --role dev
+```
+
+If `vk_setup.py --role dev` just added your user to the `docker` group, log out and log back in (or run `newgrp docker` in the current shell) and ensure `~/.local/bin` is on `PATH`, then verify:
+
+```bash
 tools/setup/vk_setup.py --role dev --check
 ```
 
@@ -23,12 +28,12 @@ Pass `--build-local` if you edited `.devcontainer/Dockerfile` or cannot pull fro
 
 ## Checking your change
 
-Run what CI runs before you open a pull request, in the container (with Docker, prefix each command with `vk`):
+Run what CI runs before you open a pull request, in the container (omit `vk` inside VS Code Dev Containers):
 
 ```bash
-cmake --preset test
-cmake --build --preset test
-ctest --preset test
+vk cmake --preset test
+vk cmake --build --preset test
+vk ctest --preset test
 ```
 
 `ctest` includes the license check (`reuse_lint`) and the Python lint (`python_lint`, ruff, [configured](pyproject.toml) for line length 120 and Python 3.10 in the bundled tools under `tools/link/`, `tools/log/`, `tools/flash/`, and `tools/setup/`); `ruff check --fix` repairs most findings. Then build every firmware preset you touched, for example `c50c-v1_1`. A change to the Link's decoders also runs the fuzz targets (`cmake --preset fuzz`, `cmake --build --preset fuzz`, `ctest --preset fuzz`). The `sitl`, `test` and `fuzz` presets run clang-tidy with every warning as an error. [Testing](docs/guide/testing.md) describes the six test layers; add tests at the lowest layer that can catch the bug. Changes that move actuators also need the hardware check described there, done with the wheels off the ground and output power limited.

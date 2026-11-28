@@ -103,14 +103,15 @@ Calibration is performed entirely on the development host using recorded ULog da
 
 ### Step-by-step calibration procedure
 
-Run serial commands on the **host** (`python3-serial` and `dialout`; see [Environment setup](setup.md)). Save recorded `.ulg` files to `/tmp/` or `vendor/` rather than the repository root so `reuse_lint` stays clean. From a git checkout against a board build, pass `--msg-dir build/c50c-v1_1/generated/schema/python` (and `--param-meta build/c50c-v1_1/generated/params/params.json` for `param set`); inside an unpacked [Host Tools Bundle](companion-computer.md#the-host-tools-bundle), both are automatic.
+Run serial commands on the **host** (`python3-serial` and `dialout`; see [Environment setup](setup.md)). Save recorded `.ulg` files to the git-ignored `vendor/` directory (`mkdir -p vendor`) rather than the repository root (so `reuse_lint` stays clean) or host `/tmp/` (which is not mounted inside `vk`, whereas files under `vendor/` are directly accessible to `vk ulog_info` and `vk tools/log/replay.py`). From a git checkout against a board build, pass `--msg-dir build/c50c-v1_1/generated/schema/python` (and `--param-meta build/c50c-v1_1/generated/params/params.json` for `param set`); inside an unpacked [Host Tools Bundle](companion-computer.md#the-host-tools-bundle), both are automatic.
 
 1. **Connect and start recording**:
    Connect the Link monitor to the vehicle and start recording with the `estimator_replay` profile:
    ```bash
+   mkdir -p vendor
    tools/link/link_monitor.py --serial /dev/ttyACM0 \
        --msg-dir build/c50c-v1_1/generated/schema/python \
-       record /tmp/mag_cal.ulg --profile estimator_replay
+       record vendor/mag_cal.ulg --profile estimator_replay
    ```
 2. **Initial stationary alignment**:
    Keep the vehicle completely stationary for at least 1.5 seconds while the estimators align initial tilt and reference field strength.
@@ -121,7 +122,7 @@ Run serial commands on the **host** (`python3-serial` and `dialout`; see [Enviro
 5. **Run the calibration tool**:
    Run `tools/log/mag_cal.py` on the recorded file:
    ```bash
-   tools/log/mag_cal.py /tmp/mag_cal.ulg
+   tools/log/mag_cal.py vendor/mag_cal.ulg
    ```
    The tool reads the recorded samples, undoes the logged `CAL_MAG_*` parameters, fits an axis-aligned ellipse to the horizontal plane, checks heading coverage (the span of headings swept, at least 360°; turning back again does not count twice) and residual, and prints the fit summary:
    ```text
@@ -141,12 +142,12 @@ Run serial commands on the **host** (`python3-serial` and `dialout`; see [Enviro
 6. **Apply parameters**:
    Apply the parameters automatically over the Link with `--apply` (pass `--msg-dir` when running from a git checkout against a board build):
    ```bash
-   tools/log/mag_cal.py /tmp/mag_cal.ulg --apply --serial /dev/ttyACM0 \
+   tools/log/mag_cal.py vendor/mag_cal.ulg --apply --serial /dev/ttyACM0 \
        --msg-dir build/c50c-v1_1/generated/schema/python
    ```
    For SITL over UDP (`--msg-dir` defaults to `build/sitl/generated/schema/python`):
    ```bash
-   tools/log/mag_cal.py /tmp/mag_cal.ulg --apply --udp 127.0.0.1:15600
+   tools/log/mag_cal.py vendor/mag_cal.ulg --apply --udp 127.0.0.1:15600
    ```
 
 ### 3D ellipsoid calibration (`--3d`)
@@ -154,7 +155,7 @@ Run serial commands on the **host** (`python3-serial` and `dialout`; see [Enviro
 For a vehicle that can be turned about every axis (for example a small underwater vehicle turned by hand), pass `--3d` to fit an axis-aligned ellipsoid:
 
 ```bash
-tools/log/mag_cal.py /tmp/mag_cal.ulg --3d --apply --serial /dev/ttyACM0 \
+tools/log/mag_cal.py vendor/mag_cal.ulg --3d --apply --serial /dev/ttyACM0 \
     --msg-dir build/c50c-v1_1/generated/schema/python
 ```
 
@@ -164,28 +165,29 @@ This fits and applies offsets and scales for all three axes (`CAL_MAG_XOFF`, `CA
 
 Vehkernel checks that the board orientation parameter `SENS_BOARD_ROT` matches how the board sits in the vehicle using `tools/log/accel_check.py` (#188). The tool evaluates two stationary ULog recordings of the whole vehicle: one level, and one with the nose tilted down by at least 30°. A larger tilt gives a better check. The tool cannot tell a nose-up log from a nose-down one on a turned board (as the tool's note says, recording with the nose up instead names `YAW_180`).
 
-The check runs entirely on the development host or companion computer from recorded logs; the MCU runs no fitting routines. Save the recordings to `/tmp/` or `vendor/` rather than the repository root so `reuse_lint` stays clean. From an unpacked Host Tools Bundle, omit `--msg-dir`.
+The check runs entirely on the development host or companion computer from recorded logs; the MCU runs no fitting routines. Save the recordings to the git-ignored `vendor/` directory (`mkdir -p vendor`) rather than the repository root or host `/tmp/` so they remain directly accessible inside `vk` (`ulog_info`, `replay.py`) and `reuse_lint` stays clean. From an unpacked Host Tools Bundle, omit `--msg-dir`.
 
 The whole vehicle must be completely still and held safely during both recordings, disarmed with the drive power off:
 
 1. **Record the level pose**:
    Place the vehicle on a level surface. Keep it completely still and record for 12 seconds with the `estimator_replay` profile:
    ```bash
+   mkdir -p vendor
    tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/generated/schema/python \
-       record /tmp/level.ulg --profile estimator_replay --duration 12
+       record vendor/level.ulg --profile estimator_replay --duration 12
    ```
 
 2. **Record the nose-down pose**:
    Tilt the vehicle nose down by 40° or more. The tool refuses under 30° between the two poses as measured, and an uncalibrated accelerometer can read about a degree less than the tilt. Hold it still and safely, and record:
    ```bash
    tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/generated/schema/python \
-       record /tmp/nose_down.ulg --profile estimator_replay --duration 12
+       record vendor/nose_down.ulg --profile estimator_replay --duration 12
    ```
 
 3. **Run the check tool**:
    Pass both recordings to `tools/log/accel_check.py`:
    ```bash
-   tools/log/accel_check.py /tmp/level.ulg /tmp/nose_down.ulg
+   tools/log/accel_check.py vendor/level.ulg vendor/nose_down.ulg
    ```
 
 The tool leaves out samples within 1 second of the first and last `imu_sample` timestamp in each log to eliminate motion from starting and stopping the recording, checks that the vehicle was stationary, verifies the gravity magnitude and pose separation angle, and prints summary lines for each pose:

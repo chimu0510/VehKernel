@@ -30,12 +30,12 @@ tools/link/link_monitor.py --check --duration 5 --expect-rate imu_sample:0=200
 ```
 
 ```text
-link handshake=ok version=5 mismatches=0 params=26 param_set_hash=0x71B05295612E4195 frames=2121 crc_errors=0 malformed=0 lost=0 rtt_us=4183 clock_offset_us=-45587244269
+link handshake=ok version=5 mismatches=0 params=65 param_set_hash=0x71B05295612E4195 frames=2121 crc_errors=0 malformed=0 lost=0 rtt_us=4183 clock_offset_us=-45587244269
 topic name=imu_sample instance=0 messages=1004 rate_hz=200.01
 topic name=link_status instance=0 messages=5 rate_hz=1.00
 topic name=vehicle_attitude instance=0 messages=250 rate_hz=49.95
 topic name=work_item_status instance=0 messages=5 rate_hz=1.00
-firmware version=0.2.0 git=f80f754f dirty=0 board_id=0
+firmware version=0.3.0 git=f80f754f dirty=0 board_id=0
 mcu_link instance=0 frames_sent=1666 bytes_sent=87998 frames_received=9 bytes_received=138 drops=0 crc_errors=0 malformed=0 lost=0 handshake_state=connected rate_scale=100
 arming_checks failing=wrong_mode skipped=rc_not_connected,sticks_not_centred
 vehicle_status mode=STANDBY armed=0 source=none board_verified=1 emergency_stop=0 actuator_power=powered skipped_checks=none arming_refusal=none disarm_reason=none output_watchdog_trips=0 reset_cause=power_on fault=none fault_address=0x00000000
@@ -111,10 +111,11 @@ The hardware check of the parameters (L4): set `ATT_KP` and `SENS_BOARD_ROT`, po
 
 ## Logging
 
-The `record` command records a ULog file over the Link with a log profile (spec 0011, ADR-0019); [Logging](logging.md) describes what the file holds, the profiles and replay. Save logs outside the repository root (for example under `/tmp/` or the git-ignored `vendor/` directory) so `reuse_lint` stays clean:
+The `record` command records a ULog file over the Link with a log profile (spec 0011, ADR-0019); [Logging](logging.md) describes what the file holds, the profiles and replay. Save logs to the git-ignored `vendor/` directory (`mkdir -p vendor`) rather than the repository root (so `reuse_lint` stays clean) or host `/tmp/` (which is not mounted inside `vk`, so container tools such as `ulog_info` and `replay.py` cannot read it):
 
 ```bash
-tools/link/link_monitor.py --udp 127.0.0.1:15600 record /tmp/log.ulg --profile estimator_replay --duration 30
+mkdir -p vendor
+tools/link/link_monitor.py --udp 127.0.0.1:15600 record vendor/log.ulg --profile estimator_replay --duration 30
 ```
 
 ## Running from a bundle
@@ -137,7 +138,7 @@ tools/link/link_monitor.py --serial /dev/ttyACM0 --msg-dir build/c50c-v1_1/gener
 ```
 
 ```text
-firmware version=0.2.0 git=f80f754f dirty=0 board_id=22083
+firmware version=0.3.0 git=f80f754f dirty=0 board_id=22083
 ```
 
 `git` is the commit's first 32 bits, read from the app descriptor the bootloader checks, so `git log` finds it. `dirty=1` means the image was built from changes that were not committed, so the commit alone does not say what it holds.

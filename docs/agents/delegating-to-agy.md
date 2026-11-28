@@ -1,6 +1,6 @@
 # Delegating to agy
 
-An agent working on Vehkernel can hand the implementation of a ticket to the Antigravity CLI (agy), as [`docs/agents/delegation.md`](../agents/delegation.md) describes. agy runs with its permission prompts skipped, so it must not be able to reach anything but the ticket's own worktree. This guide sets up the sandbox that enforces that on a development host, and shows how to run agy in it and how to check the sandbox.
+An agent working on Vehkernel can hand the implementation of a ticket to the Antigravity CLI (agy), as [`docs/agents/delegation.md`](delegation.md) describes. agy runs with its permission prompts skipped, so it must not be able to reach anything but the ticket's own worktree. This guide sets up the sandbox that enforces that on a development host, and shows how to run agy in it and how to check the sandbox.
 
 With this setup, agy only writes code. It cannot build, test, commit or push: the agent that delegated runs the checks in the container and reviews the result.
 
@@ -24,9 +24,9 @@ agy's own `--sandbox` option is not a substitute. On this host (agy 1.4.9, Linux
 
 ## Requirements
 
-- A Linux host, linux/amd64, as for [building](building.md#development-environment). Tested on Ubuntu 24.04.
+- A Linux host (`linux/amd64` or `linux/arm64`), as for [building](../guide/building.md#development-environment). Tested on Ubuntu 24.04.
 - The Claude desktop app, or another program allowed to create user namespaces (see [User namespaces on Ubuntu](#user-namespaces-on-ubuntu)).
-- The development image `vehkernel-dev`, for the checks the delegating agent runs ([Building](building.md#development-environment)).
+- The development container image `ghcr.io/chimu0510/vehkernel-dev:latest` (or a local `vehkernel-dev:latest` build) invoked through the `vk` wrapper, for the checks the delegating agent runs ([Building](../guide/building.md#development-environment)).
 
 Tested with these versions:
 

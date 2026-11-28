@@ -6,7 +6,7 @@ agy only writes code, in its ticket's worktree, inside a sandbox that lets it wr
 
 ## Running agy
 
-agy always runs in the sandbox that [Delegating to agy](../guide/delegating-to-agy.md) sets up and checks: bubblewrap, with only the ticket's worktree and agy's own state writable, the home directory hidden, the repository's `.git` read-only, and no Docker or D-Bus. Never run agy for a ticket outside it, and check the sandbox as the guide says before the first delegation on a host and after any change to it.
+agy always runs in the sandbox that [Delegating to agy](delegating-to-agy.md) sets up and checks: bubblewrap, with only the ticket's worktree and agy's own state writable, the home directory hidden, the repository's `.git` read-only, and no Docker or D-Bus. Never run agy for a ticket outside it, and check the sandbox as the guide says before the first delegation on a host and after any change to it.
 
 agy runs as a shell command in the background, started from a shell of the Claude desktop app (Ubuntu lets only it create the sandbox's user namespace, as the guide explains), not through the agy-bridge MCP server: an MCP tool call gives up after about a minute in the desktop app and returns no session id while agy keeps working (found on 2026-10-29). A shell command has no such limit, and each one is a separate process, so several tickets can run at once.
 
@@ -20,7 +20,7 @@ agy_sandboxed "$AGY_DELEGATE" --yolo --timeout 60m -d "$PWD" - < ../vk-<ticket>.
 - `--yolo` lets agy edit files and run commands without asking; the sandbox is what keeps it in its worktree. The limits in **What agy must not do** that the sandbox does not enforce hold because the prompt states them.
 - The first round starts a new agy conversation. Its id is the `conversation_id` in the `AGY_USAGE` line of `agy-1.log`.
 - Every later round on the ticket adds `--conversation <id>`, so agy continues with what it already knows about the ticket.
-- While a round runs, its conversation is never opened in another agy (`/resume` interrupts the round). `tools/agy/agy_watch.py <id>` shows its progress from a copy instead ([Delegating to agy](../guide/delegating-to-agy.md#watching-a-running-conversation)).
+- While a round runs, its conversation is never opened in another agy (`/resume` interrupts the round). `tools/agy/agy_watch.py <id>` shows its progress from a copy instead ([Delegating to agy](delegating-to-agy.md#watching-a-running-conversation)).
 - The main agent tells the maintainer, in the conversation, the ticket and its agy conversation id each time a delegation starts or resumes, and again in its report when the ticket is accepted or stopped, with the number of rounds. A ticket subagent gives the id to the main agent as soon as the first round returns it, and in its final report.
 - The exit code says how it ended: 0 done, 2 agy failed, 10 quota, 11 not logged in, 12 timed out (the report then holds agy's partial answer). On 12, the next round resumes the same conversation.
 - The default model tier (`flash`) suits most tickets; `--tier pro` is for a ticket that is mostly algorithm, such as a filter's mathematics.
@@ -53,7 +53,7 @@ Delegate a ticket when its implementation is larger than the cost of writing the
 ## One ticket, step by step
 
 1. The main agent picks the ticket from the frontier and claims it, as in `handoff.md`, **Starting a session**.
-2. The main agent creates the ticket's worktree on a new branch from `main`, in the worktree directory `$VK_WORKTREES` that [Delegating to agy](../guide/delegating-to-agy.md#the-worktree-directory) sets, never beside or inside the main checkout: `git worktree add "$VK_WORKTREES/vk-<ticket>" -b ticket/<ticket> main`, and runs `git submodule update --init` in it. The worktree is the `cwd` of every agy call on the ticket; its build trees stay inside it (`build/<preset>`).
+2. The main agent creates the ticket's worktree on a new branch from `main`, in the worktree directory `$VK_WORKTREES` that [Delegating to agy](delegating-to-agy.md#the-worktree-directory) sets, never beside or inside the main checkout: `git worktree add "$VK_WORKTREES/vk-<ticket>" -b ticket/<ticket> main`, and runs `git submodule update --init` in it. The worktree is the `cwd` of every agy call on the ticket; its build trees stay inside it (`build/<preset>`).
 3. The main agent writes the prompt to `../vk-<ticket>.agy/prompt-1.md` and runs agy from the worktree, as **Running agy** says. The prompt holds:
    - the ticket number and its acceptance criteria, copied from the issue, not paraphrased;
    - the files to read first: the spec, the ADRs the ticket touches, `GLOSSARY.md` and `CONTRIBUTING.md`;

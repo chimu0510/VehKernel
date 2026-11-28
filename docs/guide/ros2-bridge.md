@@ -56,7 +56,7 @@ ros2 run vehkernel_bridge bridge
 
 ```text
 [INFO] [bridge]: Link over udp 127.0.0.1:15600
-[INFO] [bridge]: handshake done: protocol version 5, 29 topics, 61 parameters
+[INFO] [bridge]: handshake done: protocol version 5, 31 topics, 65 parameters
 [INFO] [bridge]: no topic's schema hash differs
 [INFO] [bridge]: time synchronization: MCU clock = Bridge clock + ... us, round trip 5960 us
 ```
@@ -70,15 +70,7 @@ ros2 topic echo --once /vehkernel/vehicle_status
 
 ## Running against a board
 
-Connect the board's USB port to the companion computer. Ensure your user is in the `dialout` group (log out and back in afterwards), install [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and keep `ModemManager` disabled and `brltty` removed so neither probes the board's USB serial adapters or toggles DTR/RTS on a download port (`tools/setup/vk_setup.py --role companion` configures and checks all of these):
-
-```bash
-sudo usermod -aG dialout "$USER"
-sudo cp tools/setup/udev/99-vehkernel.rules /etc/udev/rules.d/99-vehkernel.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-sudo systemctl disable --now ModemManager.service
-sudo apt purge brltty
-```
+Connect the board's USB port to the companion computer. Ensure `dialout` group membership, [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation are configured (`tools/setup/vk_setup.py --role companion` automates and verifies all of these; see [Environment setup](setup.md#udev-rules-99-vehkernelrules) for the manual commands).
 
 Each serial adapter appears as `/dev/ttyACM0`, `/dev/ttyACM1`, etc. in plug-in order. On the C50C V1.1, both CH9102F adapters (`SERIAL1` and `SERIAL2`) share the same `/dev/serial/by-id/` entry (`usb-WCH.CN_USB_Single_Serial_0002-if00`), so `/dev/serial/by-id/` cannot distinguish them ([C50C V1.1 serial ports](../boards/c50c-v1_1.md#serial-ports)). For a stable device path across reboots and replugs, use `/dev/serial/by-path/` or pin `/dev/vehkernel-link` by physical USB port using the commented `ENV{ID_PATH}` or `KERNELS` template in [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules):
 
@@ -104,6 +96,9 @@ tools/setup/vk_setup.py --role companion --install-bridge-service \
 ```
 
 This installs `~/.config/systemd/user/vehkernel-bridge.service`, creates `~/.config/vehkernel/bridge.env` if absent (preserving existing edits; see [`tools/setup/systemd/bridge.env.example`](../../tools/setup/systemd/bridge.env.example)), runs `systemctl --user enable vehkernel-bridge.service`, and enables lingering (`sudo loginctl enable-linger "$USER"`) so the user service starts at boot without an interactive login. Edit `~/.config/vehkernel/bridge.env` to change `VK_BRIDGE_WORKSPACE` (must be an absolute path; `systemd` `EnvironmentFile` does not expand `~`), `VK_BRIDGE_DEVICE`, `VK_BRIDGE_BAUD`, or `ROS_DOMAIN_ID`.
+
+> [!NOTE]
+> On minimal headless Ubuntu Server or Raspberry Pi images, `systemctl --user` may fail with `Failed to connect to bus` if `dbus-user-session` is not installed. Install it (`sudo apt install dbus-user-session`) and open a fresh login session (or export `XDG_RUNTIME_DIR="/run/user/$(id -u)"` in non-interactive SSH sessions) before running `systemctl --user`.
 
 Start, inspect, restart, and view logs for the service:
 

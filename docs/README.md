@@ -11,28 +11,59 @@
 
 ## Guides
 
+### Getting Started
+
 | Guide | Contents |
 |---|---|
 | [Environment setup](guide/setup.md) | Role-based host, companion and desktop setup (`vk_setup.py`), `vk` wrapper, udev rules, `vehkernel-bridge.service` |
+| [First deployment](guide/first-deployment.md) | End-to-end walkthrough from a fresh C50C V1.1 and companion computer to ROS2 and a first bench drive |
 | [Building](guide/building.md) | Devcontainer, host tools, presets, Kconfig |
-| [Flashing](guide/flashing.md) | SWD, the serial flasher, rebooting into the bootloader |
 | [SITL](guide/sitl.md) | Options, report, motion profiles, transports |
-| [Link monitor](guide/link-monitor.md) | Live view, checks, attitude, parameters, recording a log |
+| [Examples](guide/examples.md) | Building, flashing, SITL and lessons for the board examples |
+
+### Deployment & Operations
+
+| Guide | Contents |
+|---|---|
+| [Flashing](guide/flashing.md) | SWD, the serial flasher, remote `deploy.py`, rebooting into the bootloader |
 | [Companion computer](guide/companion-computer.md) | Host tools bundle, unpacking, parameters, flashing, clock synchronization, the Bridge |
 | [ROS2 Bridge](guide/ros2-bridge.md) | Installing ROS2 Jazzy, building and running the Bridge, topics, services, parameters, frames, silence |
-| [Estimation](guide/estimation.md) | Attitude estimators, heading fusion, magnetometer calibration, board orientation check |
 | [Driving the wheels](guide/driving.md) | Safety conditions, arming, motor bring-up, driving, odometry, remote control |
+| [Link monitor](guide/link-monitor.md) | Live view, checks, attitude, parameters, recording a log |
 | [Local display](guide/local-display.md) | Status bar, pages, user key, local menu, display protection |
+| [Estimation](guide/estimation.md) | Attitude estimators, heading fusion, magnetometer calibration, board orientation check |
 | [Logging](guide/logging.md) | Recording, profiles, dropouts, opening logs, replay |
-| [Testing](guide/testing.md) | Test layers, `ctest`, estimator replay, fuzzing, bring-up image, hardware checks |
-| [Examples](guide/examples.md) | Building, flashing, SITL and lessons for the board examples |
-| [Delegating to agy](guide/delegating-to-agy.md) | Sandboxing the Antigravity CLI for ticket work: install, login, running, checking the sandbox |
+| [Troubleshooting](guide/troubleshooting.md) | Common failure modes across container builds, serial ports, flashing, ROS2 discovery, estimation and arming |
 
-## Boards
+### Developer & Architecture
 
-| Board | ADR |
+| Guide | Contents |
 |---|---|
-| [C50C V1.1](boards/c50c-v1_1.md) | [ADR-0024](adr/0024-c50c-v1_1-board.md) |
+| [Architecture](guide/architecture.md) | Software layers, bus backbone, work queues, control chain, Links and safety boundaries |
+| [Configuration and codegen](guide/configuration-and-codegen.md) | Kconfig layers, board definitions, topic schemas, parameter definitions and code generators |
+| [Testing](guide/testing.md) | Test layers, `ctest`, estimator replay, fuzzing, CI jobs, bring-up image, hardware checks |
+
+### Board & Design Reference
+
+| Document | Contents |
+|---|---|
+| [C50C V1.1](boards/c50c-v1_1.md) | C50C V1.1 connectors, ports and wiring ([ADR-0024](adr/0024-c50c-v1_1-board.md)) |
+| [Architecture Decision Records](adr/README.md) | Every architectural decision and why it was made |
+| [Milestone specs](specs/README.md) | What each milestone set out to build and its hardware verification |
+| [Glossary](../GLOSSARY.md) | The project vocabulary; docs, code and issues use its terms |
+
+## Agent documentation
+
+Maintainer and AI coding agent workflow documents live under [`agents/`](agents/):
+
+| Document | Contents |
+|---|---|
+| [Issue tracker](agents/issue-tracker.md) | Managing GitHub issues, sub-issues and specs with `gh` |
+| [Triage labels](agents/triage-labels.md) | Five-role issue triage vocabulary |
+| [Domain docs](agents/domain.md) | Maintaining `GLOSSARY.md` and `docs/adr/` |
+| [Handoff](agents/handoff.md) | Starting a session, finishing a ticket and ending a session |
+| [Delegation](agents/delegation.md) | Splitting implementation work through agy or a Claude Code session |
+| [Delegating to agy](agents/delegating-to-agy.md) | Sandboxing the Antigravity CLI for ticket work: install, login, running, checking the sandbox |
 
 ## Repository layout
 
@@ -56,7 +87,7 @@
 | `sim/` | SITL's simulated devices and the ground vehicle they move |
 | `soc/` | One directory per SoC, grouped by vendor and family |
 | `test/` | Tests, by layer ([Testing](guide/testing.md)) |
-| `tools/` | Host tools, one directory per purpose (`bringup/`, `bundle/`, `flash/`, `generators/`, `link/`, `log/`, `setup/`) |
+| `tools/` | Host tools, one directory per purpose (`agy/`, `bootloader/`, `bringup/`, `bundle/`, `examples/`, `firmware/`, `flash/`, `generators/`, `kconfig/`, `link/`, `log/`, `setup/`, `socdb/`) |
 | `tools/setup/` | Role-based setup CLI (`vk_setup.py`), worktree-safe `vk` wrapper, `ntp_offset.py`, udev rules, and user `systemd` templates ([ADR-0028](adr/0028-host-environment-setup.md)) |
 | `.devcontainer/` | The pinned development image used locally and by CI |
 | `.github/` | CI workflow, issue forms and the pull request template |

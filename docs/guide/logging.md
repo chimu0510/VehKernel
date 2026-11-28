@@ -104,9 +104,10 @@ Print recorded parameters:
 vk ulog_params vendor/log.ulg
 ```
 
-Export topics to CSV files (write to `vendor/` rather than the repository root):
+Export topics to CSV files (write to `vendor/` rather than the repository root; run `mkdir -p vendor` first if it does not exist yet):
 
 ```bash
+mkdir -p vendor
 vk ulog2csv -o vendor vendor/log.ulg
 ```
 
@@ -160,9 +161,10 @@ vk tools/log/replay.py vendor/log.ulg vendor/replayed.ulg --param EST_PRIMARY=1
 
 ### Running replay
 
-Replay a recorded log to an output log (inside the container, with `test` built):
+Replay a recorded log to an output log (inside the container, with `test` built; run `mkdir -p vendor` first if `vendor/` does not exist yet):
 
 ```bash
+mkdir -p vendor
 vk tools/log/replay.py vendor/log.ulg vendor/replayed.ulg
 ```
 
@@ -174,11 +176,19 @@ vk tools/log/compare.py vendor/log.ulg vendor/replayed.ulg
 
 ### Cutting a log
 
-`tools/log/cut.py` keeps the part of a log from its first `estimator_restart` for a number of seconds, with the topics the replay reads and the estimates it is compared with (`imu_sample`, `body_velocity_measurement`, `estimator_restart`, `vehicle_attitude`, `vehicle_local_odometry`) and the log's formats, information and parameters:
+`tools/log/cut.py` keeps the part of a log from its first `estimator_restart` for a number of seconds, with the five Spec 0011 replay topics (`imu_sample`, `body_velocity_measurement`, `estimator_restart`, `vehicle_attitude`, `vehicle_local_odometry`) and the log's formats, information and parameters:
 
 ```bash
 vk tools/log/cut.py vendor/log.ulg vendor/cut.ulg --duration 30
 ```
+
+> [!WARNING]
+> By default, `tools/log/cut.py` keeps only those 5 Spec 0011 topics and **omits** `magnetometer_sample`, `estimator_attitude`, and ground truth (`vehicle_attitude_groundtruth`, `vehicle_local_odometry_groundtruth`). Pass `--topics` explicitly when cutting a log for EKF heading-fusion replay, secondary estimator comparison, or SITL ground-truth evaluation:
+>
+> ```bash
+> vk tools/log/cut.py vendor/log.ulg vendor/cut.ulg --duration 30 \
+>     --topics imu_sample,body_velocity_measurement,magnetometer_sample,estimator_restart,vehicle_attitude,estimator_attitude,vehicle_local_odometry,vehicle_attitude_groundtruth,vehicle_local_odometry_groundtruth
+> ```
 
 The log of the `replay_board_log` test was cut so, from a drive recorded on the C50C V1.1.
 

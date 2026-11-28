@@ -7,8 +7,9 @@ The examples are numbered in hardware and layering dependency order: earlier exa
 ## Layout
 
 - [`examples/README.md`](../../examples/README.md): index of board examples and supported hardware.
+- `examples/examples.config`: top-level Kconfig debug overlay (`CONFIG_EXAMPLES=y`) used by the `sitl-examples` preset.
 - `examples/<board>/examples.toml`: ordered declaration of examples, introduced components, prerequisites, and SITL compatibility.
-- `examples/<board>/examples.config`: Kconfig debug overlay (`CONFIG_EXAMPLES=y`).
+- `examples/<board>/examples.config`: board Kconfig debug overlay (`CONFIG_EXAMPLES=y`) used by the `<board>-examples` preset.
 - `examples/<board>/NN-name/`: one directory per example, containing:
   - `main.cpp`: compact example entry point.
   - `README.md`: lesson covering objectives, wiring, code walkthrough and exercises.

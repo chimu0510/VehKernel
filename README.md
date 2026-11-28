@@ -28,6 +28,22 @@ Vehkernel targets the boards ArduPilot and PX4 run on, and follows their convent
 | Board | C50C V1.1, the first development board ([board page](docs/boards/c50c-v1_1.md)) |
 | Companion computer | Raspberry Pi 5: the host tools bundle runs on it and talks to the board over a Link. ROS2 Jazzy from apt: the Bridge runs on it ([ROS2 Bridge](docs/guide/ros2-bridge.md)) |
 
+```mermaid
+flowchart LR
+    dev["Dev Host (vk container)"] -->|"build / flash (USB or SWD)"| mcu["C50C V1.1 MCU"]
+    dev -.->|"deploy.py (SSH)"| comp["Companion RPi 5 (ROS2 Bridge)"]
+    mcu <-->|"Serial Link (921600)"| comp
+    comp <-->|"ROS2 DDS"| desk["Desktop (RViz2 / Nav2)"]
+```
+
+## Start here
+
+| Goal | Start with |
+|---|---|
+| **Try SITL** (no hardware required) | [Environment setup](docs/guide/setup.md), then the [Quick start](#quick-start) below and [SITL](docs/guide/sitl.md) |
+| **Deploy C50C + ROS2** (bench to first drive) | [First deployment](docs/guide/first-deployment.md), [Environment setup](docs/guide/setup.md), and [Troubleshooting](docs/guide/troubleshooting.md) |
+| **Co-develop & extend** (modules, schemas, parameters, boards) | [Architecture](docs/guide/architecture.md), [Configuration and codegen](docs/guide/configuration-and-codegen.md), and [CONTRIBUTING.md](CONTRIBUTING.md) |
+
 ## Design
 
 - **Role**: the MCU is the companion computer's real-time coprocessor and safety gatekeeper, not an autopilot.
@@ -45,10 +61,15 @@ Vehkernel builds in a container: `cmake` and `ctest` run inside the pinned image
 git clone --recurse-submodules https://github.com/chimu0510/VehKernel.git
 cd VehKernel
 tools/setup/vk_setup.py --role dev
+# If vk_setup.py just added your user to the docker group, log out and back in
+# (or run `newgrp docker` in this shell) and ensure ~/.local/bin is on PATH.
 vk cmake --preset sitl
 vk cmake --build --preset sitl
 vk build/sitl/app/vehkernel-sitl --duration 5
 ```
+
+> [!NOTE]
+> Adding your user to the `docker` group takes effect in a new login session: log out and log back in (or run `newgrp docker` in the current shell) and ensure `~/.local/bin` is on `PATH` before running `vk`.
 
 If Docker is already installed and you prefer not to run `vk_setup.py`, pull `ghcr.io/chimu0510/vehkernel-dev:latest` directly and run `./tools/setup/vk` (or use `--role dev --build-local` to build locally). In VS Code, "Reopen in Container" instead, and run the commands without `vk`.
 

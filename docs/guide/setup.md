@@ -49,11 +49,13 @@ tools/setup/vk_setup.py --role dev --build-local
 
 ### Companion computer (Ubuntu 24.04)
 
-On a fresh Ubuntu 24.04 companion computer (such as a Raspberry Pi 5), configure ROS2 Jazzy, build the Bridge into `~/vk_ws`, and install the optional `vehkernel-bridge.service` user unit:
+On a fresh Ubuntu 24.04 companion computer (such as a Raspberry Pi 5), run from a Vehkernel git checkout (or pass `--repo-dir <checkout>`) to configure ROS2 Jazzy, build the Bridge into `~/vk_ws`, and install the optional `vehkernel-bridge.service` user unit:
 
 ```bash
 tools/setup/vk_setup.py --role companion --yes --workspace ~/vk_ws --build-bridge --install-bridge-service
 ```
+
+`--build-bridge` requires a git checkout (or `--repo-dir` pointing to one), not an unpacked Host Tools Bundle, because the ROS2 Bridge packages (`bridge/vehkernel_msgs` and `bridge/vehkernel_bridge`) are not shipped in a bundle.
 
 Log out and log back in for the `dialout` group to take effect, then verify:
 
@@ -97,9 +99,9 @@ tools/setup/vk_setup.py --role desktop --check
 | Option | Default | Effect |
 |---|---|---|
 | `--workspace <path>` | `~/vk_ws` | Colcon workspace path for building and running `vehkernel_bridge` |
-| `--build-bridge` | off | Run `rosdep install` and `colcon build --base-paths <repo>/bridge --packages-up-to vehkernel_bridge` in `--workspace` |
+| `--build-bridge` | off | Run `rosdep install` and `colcon build --base-paths <repo>/bridge --packages-up-to vehkernel_bridge` in `--workspace`; requires a git checkout (or `--repo-dir`), not an unpacked Host Tools Bundle |
 | `--repo-dir <path>` | auto-detected | Path to the Vehkernel checkout containing `bridge/vehkernel_bridge/package.xml` |
-| `--install-bridge-service` | off | Install `~/.config/systemd/user/vehkernel-bridge.service`, create `~/.config/vehkernel/bridge.env` if absent, enable the user service, and run `loginctl enable-linger "$USER"` |
+| `--install-bridge-service` | off | Install `~/.config/systemd/user/vehkernel-bridge.service`, create `~/.config/vehkernel/bridge.env` if absent, enable the user service, and run `loginctl enable-linger "$USER"` (minimal headless Ubuntu Server / Raspberry Pi images may require `dbus-user-session`; see below) |
 | `--device <path>` | `/dev/ttyACM0` | `VK_BRIDGE_DEVICE` written when creating `~/.config/vehkernel/bridge.env` |
 | `--baud <rate>` | `921600` | `VK_BRIDGE_BAUD` written when creating `~/.config/vehkernel/bridge.env` |
 | `--ros-domain-id <0..232>` | `0` | `ROS_DOMAIN_ID` written when creating `~/.config/vehkernel/bridge.env` |
@@ -127,10 +129,25 @@ See [Building](building.md#development-environment) for build presets and VS Cod
 - Grants non-root access (`MODE="0660"`, `GROUP="dialout"`, `TAG+="uaccess"`) and sets `ENV{ID_MM_DEVICE_IGNORE}="1"` for WCH CH9102F USB serial adapters (`1a86:55d4`) so `ModemManager` does not toggle DTR/RTS on the C50C V1.1 download circuit.
 - Provides a commented `ENV{ID_PATH}` and `KERNELS` template to pin C50C V1.1's two CH9102F ports (`/dev/vehkernel-link` and `/dev/vehkernel-download`) by physical USB port, avoiding the `/dev/serial/by-id/` collision ([C50C V1.1 serial ports](../boards/c50c-v1_1.md#serial-ports)).
 
+To configure serial and ST-Link permissions manually instead of running `vk_setup.py --role flash` or `--role companion` (omit `plugdev` if no ST-Link probe is attached):
+
+```bash
+sudo usermod -aG dialout,plugdev "$USER"
+sudo cp tools/setup/udev/99-vehkernel.rules /etc/udev/rules.d/99-vehkernel.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo systemctl disable --now ModemManager.service
+sudo apt purge brltty
+```
+
+Log out and log back in for the new group memberships to take effect. Disabling `ModemManager` and removing `brltty` prevents them from probing new `/dev/ttyACM*` adapters and driving DTR/RTS on a download circuit (which resets the board or holds BOOT0 high).
+
 ### Optional `vehkernel-bridge.service` user unit
 
 `--role companion --install-bridge-service` installs [`tools/setup/systemd/vehkernel-bridge.service`](../../tools/setup/systemd/vehkernel-bridge.service) to `~/.config/systemd/user/vehkernel-bridge.service` and writes `~/.config/vehkernel/bridge.env` (see [`tools/setup/systemd/bridge.env.example`](../../tools/setup/systemd/bridge.env.example)). Running the Bridge as a user unit with lingering enabled (`loginctl enable-linger "$USER"`) starts it at boot and lets [`tools/flash/deploy.py`](../../tools/flash/deploy.py) stop and restart it over non-interactive SSH without `sudo` ([Running the Bridge as a user service](ros2-bridge.md#running-the-bridge-as-a-user-service)).
 
+> [!NOTE]
+> Minimal headless Ubuntu Server and Raspberry Pi images sometimes omit `dbus-user-session`, which causes `systemctl --user` to fail with `Failed to connect to bus`. Install it with `sudo apt install dbus-user-session` and open a new login session (or ensure `XDG_RUNTIME_DIR="/run/user/$(id -u)"` is exported when running `systemctl --user` over SSH) before enabling or starting `vehkernel-bridge.service`.
+
 ### Running from a Host Tools Bundle
 
-Every Host Tools Bundle includes `tools/setup/` (`vk_setup.py`, `ntp_offset.py`, `vk`, udev rules, and `systemd` templates), so a companion computer can run `--role flash`, `--role companion --check`, or clock offset checks directly from the unpacked archive without a git checkout ([Companion computer](companion-computer.md)).
+Every Host Tools Bundle includes `tools/setup/` (`vk_setup.py`, `ntp_offset.py`, `vk`, udev rules, and `systemd` templates), so a companion computer can run `--role flash`, `--role companion` (without `--build-bridge`), `--role companion --check`, or clock offset checks directly from the unpacked archive without a git checkout ([Companion computer](companion-computer.md)). Building the Bridge with `--build-bridge` requires a Vehkernel git checkout (or `--repo-dir <checkout>`).

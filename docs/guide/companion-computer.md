@@ -17,10 +17,10 @@ The host tools bundle gathers these files at their standard repository paths, al
 
 Bundled tools support Python 3.10 or newer (the default on Ubuntu 22.04/24.04 LTS, Debian 12 / Raspberry Pi OS, and JetPack 6). They do not use features newer than 3.10 (such as `tomllib`, `typing.Self`, or `ExceptionGroup`).
 
-On Ubuntu 24.04 or Debian 12 / Raspberry Pi OS, install and verify the serial packages, `dialout` group membership, [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation directly from an unpacked Host Tools Bundle (no git checkout required; [Environment setup](setup.md)):
+On Ubuntu 24.04 or Debian 12 / Raspberry Pi OS, install and verify the serial packages, `dialout` group membership, [`tools/setup/udev/99-vehkernel.rules`](../../tools/setup/udev/99-vehkernel.rules), and `ModemManager`/`brltty` mitigation directly from an unpacked Host Tools Bundle (no git checkout required for `--role flash` or for `--role companion` prerequisites; [Environment setup](setup.md)):
 
 ```bash
-# Ubuntu 24.04 companion running the ROS2 Bridge:
+# Ubuntu 24.04 companion (serial + ROS2 Jazzy prerequisites; omit --build-bridge in a bundle):
 tools/setup/vk_setup.py --role companion --dry-run
 tools/setup/vk_setup.py --role companion
 tools/setup/vk_setup.py --role companion --check
@@ -31,18 +31,9 @@ tools/setup/vk_setup.py --role flash
 tools/setup/vk_setup.py --role flash --check
 ```
 
-To configure manually instead:
+Building the ROS2 Bridge with `--build-bridge` requires a git checkout of the repository (or `--repo-dir <checkout>`), not an unpacked Host Tools Bundle, because the Bridge packages live under `bridge/` ([ROS2 Bridge](ros2-bridge.md#building-the-bridge)).
 
-```bash
-sudo apt install python3-serial stm32flash
-sudo usermod -aG dialout "$USER"
-sudo cp tools/setup/udev/99-vehkernel.rules /etc/udev/rules.d/99-vehkernel.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-sudo systemctl disable --now ModemManager.service
-sudo apt purge brltty
-```
-
-Log out and log back in after adding your user to `dialout`. Disabling `ModemManager` and removing `brltty` prevents them from probing the board's CH9102F USB serial adapters and toggling DTR/RTS on C50C V1.1 `SERIAL2` (which resets the board or enters the STM32 system bootloader). (Raspberry Pi OS and recent Ubuntu refuse a system-wide `pip install`; use `python3-serial` from apt, or `pip install pyserial` inside a virtual environment.)
+Log out and log back in after adding your user to `dialout`. To install `python3-serial` and `stm32flash` and configure `dialout`, `99-vehkernel.rules`, `ModemManager`, and `brltty` manually instead, follow [Environment setup](setup.md#udev-rules-99-vehkernelrules). (Raspberry Pi OS and recent Ubuntu refuse a system-wide `pip install`; use `python3-serial` from apt, or `pip install pyserial` inside a virtual environment.)
 
 For one-command remote deployment from a development host with [`tools/flash/deploy.py`](../../tools/flash/deploy.py), ensure `openssh-server` is installed and running on the companion computer (`sudo apt install openssh-server`) and configure SSH key authentication (and any custom port/host alias in `~/.ssh/config` on the development host) so non-interactive SSH succeeds without password prompts.
 
